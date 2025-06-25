@@ -1,27 +1,58 @@
-//Maria Cecília Romão Santos    202165557C
-//Maria Luisa Riolino Guimarães 202165563C
 package br.ufjf.lang.compiler.cli;
 
+import br.ufjf.lang.compiler.parser.LangLexer;
+import br.ufjf.lang.compiler.parser.LangParser;
+import org.antlr.v4.runtime.*;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 public class Main {
+
     public static void main(String[] args) {
         if (args.length != 2) {
-            System.err.println("Uso: java -jar lang-compiler.jar [-syn|-i] arquivo.lang");
+            System.err.println("Uso: java -jar lang-compiler.jar [-syn|-i] caminho/arquivo.lang");
             System.exit(1);
         }
 
-        String directive = args[0];
-        String filename = args[1];
+        String mode = args[0];
+        String filePath = args[1];
 
-        switch (directive) {
-            case "-syn":
-                System.out.println("Executar análise sintática...");
-                break;
-            case "-i":
-                System.out.println("Interpretar programa...");
-                break;
-            default:
-                System.err.println("Diretiva inválida: " + directive);
+        try {
+            if (mode.equals("-syn")) {
+                runSyntaxCheck(filePath);
+            } else if (mode.equals("-i")) {
+                System.out.println("Interpretador ainda não implementado.");
+            } else {
+                System.err.println("Diretiva inválida: " + mode);
                 System.exit(1);
+            }
+        } catch (IOException e) {
+            System.err.println("Erro ao ler o arquivo: " + e.getMessage());
         }
+    }
+
+    private static void runSyntaxCheck(String filePath) throws IOException {
+        CharStream input = CharStreams.fromPath(Paths.get(filePath));
+        LangLexer lexer = new LangLexer(input);
+        CommonTokenStream tokens = new CommonTokenStream(lexer);
+        LangParser parser = new LangParser(tokens);
+
+        // Evita mensagens padrão do ANTLR no terminal
+        parser.removeErrorListeners();
+        parser.addErrorListener(new BaseErrorListener() {
+            @Override
+            public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                    int line, int charPositionInLine,
+                                    String msg, RecognitionException e) {
+                System.out.println("reject");
+                System.exit(1);
+            }
+        });
+
+        parser.prog(); // inicia a análise
+
+        System.out.println("accept"); // se não deu erro
     }
 }
