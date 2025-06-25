@@ -5,7 +5,6 @@ import br.ufjf.lang.compiler.parser.LangParser;
 import org.antlr.v4.runtime.*;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public class Main {
@@ -39,7 +38,6 @@ public class Main {
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         LangParser parser = new LangParser(tokens);
 
-        // Evita mensagens padrão do ANTLR no terminal
         parser.removeErrorListeners();
         parser.addErrorListener(new BaseErrorListener() {
             @Override
@@ -51,8 +49,8 @@ public class Main {
             }
         });
 
-        parser.prog(); // inicia a análise
+        parser.prog();
 
-        System.out.println("accept"); // se não deu erro
+        System.out.println("accept");
     }
 }
