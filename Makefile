@@ -18,6 +18,6 @@ clean:
 
 install:
 	mvn install
-	
+
 compile:
 	mvn compile
