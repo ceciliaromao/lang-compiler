@@ -1,6 +1,6 @@
 # Gerar parser ANTLR
 generate:
-	java -jar antlr-4.13.1-complete.jar -Dlanguage=Java -visitor -package br.ufjf.lang.compiler.parser -o ./ src/antlr4/Lang.g4
+	java -jar antlr-4.13.1-complete.jar -Dlanguage=Java -visitor -package br.ufjf.lang.compiler.parser -o ./ src/main/java/br/ufjf/lang/compiler/parser/Lang.g4
 
 # Executar análise sintática:
 run-syn:
@@ -14,7 +14,7 @@ run-i:
 
 clean:
 	mvn clean
-	rm -rf src/antlr4/Lang*.java
+	rm -rf src/main/java/br/ufjf/lang/compiler/parser/Lang*.java
 
 install:
 	mvn install
