@@ -48,7 +48,7 @@ exp         : exp op exp
             | ID '(' exps? ')' '[' exp ']'
             | 'true' | 'false' | 'null' | INT | FLOAT | CHAR;
 
-op          : '&&' | '>' | '<' | '==' | '!=' | '+' | '-' | '*' | '/' | '%';
+op          : '&&' | '<' | '==' | '!=' | '+' | '-' | '*' | '/' | '%';
 
 // L-values
 lvalue      : ID | lvalue '[' exp ']' | lvalue '.' ID;

@@ -1,4 +1,4 @@
-// Generated from src/antlr4/Lang.g4 by ANTLR 4.13.1
+// Generated from src/main/java/br/ufjf/lang/compiler/parser/Lang.g4 by ANTLR 4.13.1
 package br.ufjf.lang.compiler.parser;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 

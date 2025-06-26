@@ -1,4 +1,4 @@
-// Generated from src/antlr4/Lang.g4 by ANTLR 4.13.1
+// Generated from src/main/java/br/ufjf/lang/compiler/parser/Lang.g4 by ANTLR 4.13.1
 package br.ufjf.lang.compiler.parser;
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
@@ -1340,7 +1340,7 @@ public class LangParser extends Parser {
 			{
 			setState(242);
 			_la = _input.LA(1);
-			if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 545645395968L) != 0)) ) {
+			if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 545611841536L) != 0)) ) {
 			_errHandler.recoverInline(this);
 			}
 			else {
@@ -1606,7 +1606,7 @@ public class LangParser extends Parser {
 		"\f\r\u0103\t\r\u0001\u000e\u0001\u000e\u0001\u000e\u0005\u000e\u0108\b"+
 		"\u000e\n\u000e\f\u000e\u010b\t\u000e\u0001\u000e\u0000\u0003\f\u0016\u001a"+
 		"\u000f\u0000\u0002\u0004\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018"+
-		"\u001a\u001c\u0000\u0002\u0002\u0000\r\u0010((\u0003\u0000\u0018\u0019"+
+		"\u001a\u001c\u0000\u0002\u0002\u0000\r\u0010((\u0003\u0000\u0018\u0018"+
 		"\u001b\u001b &\u0127\u0000!\u0001\u0000\u0000\u0000\u0002(\u0001\u0000"+
 		"\u0000\u0000\u0004@\u0001\u0000\u0000\u0000\u0006B\u0001\u0000\u0000\u0000"+
 		"\bG\u0001\u0000\u0000\u0000\nZ\u0001\u0000\u0000\u0000\ff\u0001\u0000"+
