@@ -5,12 +5,12 @@ generate:
 # Executar análise sintática:
 run-syn:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -syn src/main/resources/exemplo.lang
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -syn src/main/resources/test.lang
 
 # Interpretar programa:
 run-i:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/exemplo.lang
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/test.lang
 
 clean:
 	mvn clean
