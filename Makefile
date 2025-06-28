@@ -15,6 +15,8 @@ run-i:
 clean:
 	mvn clean
 	rm -rf src/main/java/br/ufjf/lang/compiler/parser/Lang*.java
+	rm -rf src/main/java/br/ufjf/lang/compiler/parser/*.interp
+	rm -rf src/main/java/br/ufjf/lang/compiler/parser/*.tokens
 
 install:
 	mvn install

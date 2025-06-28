@@ -34,7 +34,6 @@ cmd         : block
             | 'print' exp ';'
             | 'return' exp (',' exp)* ';' 
             | lvalue '=' exp ';'
-            | ID '::' type ';'
             | ID '(' exps? ')' ('<' lvalue (',' lvalue)* '>')? ';';
 
 itcond      : ID ':' exp | exp;

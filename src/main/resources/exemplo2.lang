@@ -3,7 +3,6 @@ abstract data Racional {
     denominador :: Int;
 
     soma(a :: Racional, b :: Racional) : Racional {
-        r :: Racional;
         r = new Racional;
         r.numerador = a.numerador * b.denominador + b.numerador * a.denominador;
         r.denominador = a.denominador * b.denominador;

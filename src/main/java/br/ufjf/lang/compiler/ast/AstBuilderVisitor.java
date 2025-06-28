@@ -1,6 +1,6 @@
-package br.ufjf.lang.compiler.parser;
+package br.ufjf.lang.compiler.ast;
 
-import br.ufjf.lang.compiler.ast.*;
+import br.ufjf.lang.compiler.parser.*;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 import java.util.ArrayList;
