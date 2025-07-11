@@ -1,3 +1,6 @@
+//Maria Cecília Romão Santos    202165557C
+//Maria Luisa Riolino Guimarães 202165563C
+
 package br.ufjf.lang.compiler.cli;
 
 import br.ufjf.lang.compiler.parser.LangLexer;
@@ -60,7 +63,7 @@ public class Main {
 
     private static void runInterpreter(String filePath) throws IOException {
         
-        // 1. Parser
+        // parser
         CharStream input = CharStreams.fromPath(Paths.get(filePath));
         LangLexer lexer = new LangLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
@@ -79,12 +82,12 @@ public class Main {
 
         LangParser.ProgContext tree = parser.prog();
 
-        // 2. Constroi AST
+        // constroi AST
         AstBuilderVisitor builder = new AstBuilderVisitor();
         Program ast = (Program) builder.visit(tree);
 
-        // 3. Executa interpreter
-        // Interpreter interpreter = new Interpreter();
-        // interpreter.run(ast);
+        // executa interpreteador
+        Interpreter interpreter = new Interpreter();
+        interpreter.run(ast);
     }
 }
