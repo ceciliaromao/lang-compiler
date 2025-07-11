@@ -64,7 +64,7 @@ public class Interpreter {
             if (v instanceof LValueBool b) System.out.println(b.value);
             if (v instanceof LValueFloat f) System.out.println(f.value);
             if (v instanceof LValueChar c) System.out.println(c.value);
-            //if (v instanceof LValueNull n) System.out.println(null);
+            if (v instanceof LValueNull n) System.out.println("null");
             return null;
         }
 
@@ -249,6 +249,7 @@ public class Interpreter {
     }
 
     private void setLValue(LValue lvalue, LValue val, Map<String, LValue> locals, Map<String, LValue> globals) {
+        //System.out.println("DEBUG SET LVALUE: " + lvalue + " = " + val);
         if (lvalue instanceof LValueVar v) {
             locals.put(v.name, val);
             return;

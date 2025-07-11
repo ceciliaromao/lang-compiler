@@ -62,6 +62,12 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
 
     @Override
     public Object visitCmd(LangParser.CmdContext ctx) {
+        // Verifica se o comando é um bloco
+        if (ctx.block() != null) {
+            return visit(ctx.block());
+        }
+
+        // Obtém o primeiro token do comando
         String first = ctx.getChild(0).getText();
 
         switch (first) {
@@ -93,14 +99,15 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             }
         }
 
-        if (ctx.lvalue() != null && ctx.exp().size() == 1 && ctx.getChild(1).getText().equals("=")) {
+        // Verifica se é uma atribuição
+        if (ctx.lvalue() != null && ctx.getChild(1).getText().equals("=")) {
             LValue target = (LValue) visit(ctx.lvalue(0));
             Expr value = (Expr) visit(ctx.exp(0));
             return new CmdAssign(target, value);
         }
 
+        // Verifica se é uma chamada de função
         if (ctx.ID() != null) {
-            // procedure call without output
             String fname = ctx.ID().getText();
 
             List<Expr> args = new ArrayList<>();
@@ -110,7 +117,7 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
                 }
             }
 
-            if(ctx.getText().contains("<")) {
+            if (ctx.getText().contains("<")) {
                 List<LValue> out = new ArrayList<>();
                 for (var l : ctx.lvalue()) {
                     out.add((LValue) visit(l));
@@ -119,10 +126,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             }
 
             return new CmdCall(fname, args, null);
-        }
-
-        if (ctx.block() != null) {
-            return visit(ctx.block());
         }
 
         throw new RuntimeException("Comando não reconhecido");
@@ -208,11 +211,11 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             String op = ctx.getChild(index).getText();
             if (op.equals("[")) {
                 Expr accessIndex = (Expr) visit(ctx.exp(index / 2));
-                expr = new LValueArrayAccess(expr, accessIndex);
+                expr = new ExprArrayAccess(expr, accessIndex);
                 index += 3;
             } else if (op.equals(".")) {
                 String field = ctx.getChild(index + 1).getText();
-                expr = new LValueFieldAccess(expr, field);
+                expr = new ExprFieldAccess(expr, field);
                 index += 2;
             } else {
                 index++;
@@ -253,17 +256,17 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
 
         if (ctx.getChildCount() >= 2 && ctx.getChild(0).getText().equals("new")) {
             Type type = (Type) visit(ctx.type());
-            Expr size = ctx.exp().isEmpty() ? null : (Expr) visit(ctx.exp(0));
+            Expr size = ctx.exp() != null ? (Expr) visit(ctx.exp()) : null;
             return new ExprNew(type, size);
         }
 
-        if (ctx.ID() != null && ctx.exps() != null && ctx.exp().size() == 1) {
+        if (ctx.ID() != null && ctx.exps() != null) {
             String fname = ctx.ID().getText();
             List<Expr> args = new ArrayList<>();
             for (var e : ctx.exps().exp()) {
                 args.add((Expr) visit(e));
             }
-            Expr index = (Expr) visit(ctx.exp(0));
+            Expr index = (Expr) visit(ctx.exp());
             return new ExprCall(fname, args, index);
         }
 
