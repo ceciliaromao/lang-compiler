@@ -8,8 +8,12 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class AstBuilderVisitor extends LangBaseVisitor<Object> {
+
+    private final Map<String, Type> symbolTable = new HashMap<>(); 
 
     @Override
     public Object visitProg(LangParser.ProgContext ctx) {
@@ -30,6 +34,7 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
                 String paramName = ctx.params().ID(i).getText();
                 Type paramType = (Type) visit(ctx.params().type(i));
                 params.add(new FunDef.Param(paramName, paramType));
+                symbolTable.put(paramName, paramType);
             }
         }
 
@@ -62,12 +67,12 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
 
     @Override
     public Object visitCmd(LangParser.CmdContext ctx) {
-        // Verifica se o comando é um bloco
+        // verifica se o comando é um bloco
         if (ctx.block() != null) {
             return visit(ctx.block());
         }
 
-        // Obtém o primeiro token do comando
+        // obtém o primeiro token do comando
         String first = ctx.getChild(0).getText();
 
         switch (first) {
@@ -95,18 +100,25 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
                 return new CmdIterate(var, cond, body);
             }
             case "read" -> {
-                return new CmdRead((LValue) visit(ctx.lvalue(0)));
+                String varName = ctx.lvalue(0).ID().getText();
+                symbolTable.putIfAbsent(varName, null); // se a variável ainda não existe, adiciona à tabela com tipo null
+                return new CmdRead(new LValueVar(varName, null));
             }
         }
 
-        // Verifica se é uma atribuição
+        // verifica se é atribuição
         if (ctx.lvalue() != null && ctx.getChild(1).getText().equals("=")) {
             LValue target = (LValue) visit(ctx.lvalue(0));
             Expr value = (Expr) visit(ctx.exp(0));
+
+            // inferência simples
+            Type valueType = inferExprType(value);
+            symbolTable.put(((LValueVar)target).name, valueType);
+
             return new CmdAssign(target, value);
         }
 
-        // Verifica se é uma chamada de função
+        // verifica se é chamada de função
         if (ctx.ID() != null) {
             String fname = ctx.ID().getText();
 
@@ -276,18 +288,49 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
 
     @Override
     public Object visitLvalue(LangParser.LvalueContext ctx) {
+        // caso seja uma variável simples (ID)
         if (ctx.ID() != null && ctx.lvalue() == null) {
-            return new LValueVar(ctx.ID().getText());
+            // Determina o tipo da variável (substitua por lógica real para resolver o tipo)
+            Type type = resolveType(ctx.ID().getText());
+            return new LValueVar(ctx.ID().getText(), type);
         }
 
+        // caso seja um acesso a array
         if (ctx.lvalue() != null && ctx.exp() != null) {
             return new LValueArrayAccess((LValue) visit(ctx.lvalue()), (Expr) visit(ctx.exp()));
         }
 
+        // caso seja um acesso a campo de registro
         if (ctx.lvalue() != null && ctx.ID() != null) {
             return new LValueRecordAccess((LValue) visit(ctx.lvalue()), ctx.ID().getText());
         }
 
         throw new RuntimeException("Lvalue não reconhecido");
     }
+
+    private Type resolveType(String variableName) {
+        if (!symbolTable.containsKey(variableName)) {
+            throw new RuntimeException("Variável não declarada: " + variableName);
+        }
+        return symbolTable.get(variableName);
+    }
+    
+
+    private Type inferExprType(Expr expr) {
+        if (expr instanceof ExprInt) return new TypeBase("Int");
+        if (expr instanceof ExprBool) return new TypeBase("Bool");
+        if (expr instanceof ExprFloat) return new TypeBase("Float");
+        if (expr instanceof ExprChar) return new TypeBase("Char");
+        if (expr instanceof ExprNull) return new TypeBase("Null");
+    
+        if (expr instanceof ExprLValue lv) {
+            if (lv.lvalue instanceof LValueVar var) {
+                return var.type; 
+            }
+            throw new RuntimeException("Tipo não reconhecido para LValue: " + lv.lvalue.getClass().getSimpleName());
+        }
+    
+        return new TypeBase("Unknown");
+    } 
+    
 }

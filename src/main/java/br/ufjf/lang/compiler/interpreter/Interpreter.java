@@ -105,7 +105,34 @@ public class Interpreter {
         if (cmd instanceof CmdRead read) {
             System.out.print("> ");
             String line = scanner.nextLine();
-            locals.put(new ExprInt(Integer.parseInt(line)).toString(), read.target);
+        
+            // verifica o tipo da variável antes de converter
+            if (read.target instanceof LValueVar var) {
+                if (var.type == null) {
+                    // Inferir tipo a partir da entrada
+                    LValue inferredVal = inferFromInput(line);
+                    var.type = getTypeOf(inferredVal);
+                    locals.put(var.name, inferredVal);
+                } else if (var.type instanceof TypeBase baseType) {
+                    switch (baseType.name) {
+                        case "Int" -> locals.put(var.name, new LValueInt(Integer.parseInt(line)));
+                        case "Char" -> {
+                            if (line.length() != 1) throw new RuntimeException("Esperado um único caractere, obtido: " + line);
+                            locals.put(var.name, new LValueChar(line.charAt(0)));
+                        }
+                        case "Float" -> locals.put(var.name, new LValueFloat(Double.parseDouble(line)));
+                        case "Bool" -> {
+                            if (!line.equals("true") && !line.equals("false")) throw new RuntimeException("Esperado 'true' ou 'false', obtido: " + line);
+                            locals.put(var.name, new LValueBool(Boolean.parseBoolean(line)));
+                        }
+                        default -> throw new RuntimeException("Tipo não suportado: " + baseType.name);
+                    }
+                } else {
+                    throw new RuntimeException("Tipo da variável não reconhecido: " + var.type);
+                }
+            } else {
+                throw new RuntimeException("Target do comando 'read' não é uma variável válida.");
+            }
             return null;
         }
 
@@ -249,14 +276,78 @@ public class Interpreter {
     }
 
     private void setLValue(LValue lvalue, LValue val, Map<String, LValue> locals, Map<String, LValue> globals) {
-        //System.out.println("DEBUG SET LVALUE: " + lvalue + " = " + val);
+        // Verifica se o LValue é uma variável
         if (lvalue instanceof LValueVar v) {
+            // Verifica se o tipo do valor é compatível com o tipo da variável
+            if (v.type instanceof TypeBase baseType) {
+                switch (baseType.name) {
+                    case "Int" -> {
+                        if (!(val instanceof LValueInt)) {
+                            throw new RuntimeException("Tipo incompatível: esperado 'int', obtido: " + val.getClass().getSimpleName());
+                        }
+                    }
+                    case "Char" -> {
+                        if (!(val instanceof LValueChar)) {
+                            throw new RuntimeException("Tipo incompatível: esperado 'char', obtido: " + val.getClass().getSimpleName());
+                        }
+                    }
+                    case "Float" -> {
+                        if (!(val instanceof LValueFloat)) {
+                            throw new RuntimeException("Tipo incompatível: esperado 'float', obtido: " + val.getClass().getSimpleName());
+                        }
+                    }
+                    case "Bool" -> {
+                        if (!(val instanceof LValueBool)) {
+                            throw new RuntimeException("Tipo incompatível: esperado 'bool', obtido: " + val.getClass().getSimpleName());
+                        }
+                    }
+                    default -> throw new RuntimeException("Tipo não suportado: " + baseType.name);
+                }
+            } else {
+                throw new RuntimeException("Tipo da variável não reconhecido: " + v.type);
+            }
+    
+            // Atribui o valor à variável no escopo local
             locals.put(v.name, val);
             return;
         }
+    
+        // Caso o LValue não seja uma variável, lança uma exceção
         throw new UnsupportedOperationException("Atribuição LValue complexo não implementado");
     }
 
+    private LValue inferFromInput(String line) {
+        // Tenta inferir int
+        try {
+            return new LValueInt(Integer.parseInt(line));
+        } catch (NumberFormatException ignored) {}
+    
+        // Tenta inferir float
+        try {
+            return new LValueFloat(Double.parseDouble(line));
+        } catch (NumberFormatException ignored) {}
+    
+        // Tenta inferir bool
+        if (line.equals("true") || line.equals("false")) {
+            return new LValueBool(Boolean.parseBoolean(line));
+        }
+    
+        // Tenta inferir char
+        if (line.length() == 1) {
+            return new LValueChar(line.charAt(0));
+        }
+    
+        throw new RuntimeException("Não foi possível inferir o tipo da entrada: " + line);
+    }
+    
+    private Type getTypeOf(LValue val) {
+        if (val instanceof LValueInt) return new TypeBase("Int");
+        if (val instanceof LValueFloat) return new TypeBase("Float");
+        if (val instanceof LValueBool) return new TypeBase("Bool");
+        if (val instanceof LValueChar) return new TypeBase("Char");
+        return new TypeBase("Unknown");
+    }
+    
     private boolean asBool(LValue v) {
         if (v instanceof LValueBool b) return b.value;
         throw new RuntimeException("Esperado Bool, obtido: " + v);

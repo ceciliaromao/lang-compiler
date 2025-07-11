@@ -1,5 +1,4 @@
-main(){
-  x = 10;
-  y = 10;
-  print x + 2*y;
+main()  {
+  read x;
+  print x;
 }
