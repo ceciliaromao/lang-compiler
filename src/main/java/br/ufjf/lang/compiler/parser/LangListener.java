@@ -128,15 +128,85 @@ public interface LangListener extends ParseTreeListener {
 	 */
 	void exitExp(LangParser.ExpContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link LangParser#op}.
+	 * Enter a parse tree produced by {@link LangParser#expAnd}.
 	 * @param ctx the parse tree
 	 */
-	void enterOp(LangParser.OpContext ctx);
+	void enterExpAnd(LangParser.ExpAndContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link LangParser#op}.
+	 * Exit a parse tree produced by {@link LangParser#expAnd}.
 	 * @param ctx the parse tree
 	 */
-	void exitOp(LangParser.OpContext ctx);
+	void exitExpAnd(LangParser.ExpAndContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LangParser#expEq}.
+	 * @param ctx the parse tree
+	 */
+	void enterExpEq(LangParser.ExpEqContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LangParser#expEq}.
+	 * @param ctx the parse tree
+	 */
+	void exitExpEq(LangParser.ExpEqContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LangParser#expRel}.
+	 * @param ctx the parse tree
+	 */
+	void enterExpRel(LangParser.ExpRelContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LangParser#expRel}.
+	 * @param ctx the parse tree
+	 */
+	void exitExpRel(LangParser.ExpRelContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LangParser#expAdd}.
+	 * @param ctx the parse tree
+	 */
+	void enterExpAdd(LangParser.ExpAddContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LangParser#expAdd}.
+	 * @param ctx the parse tree
+	 */
+	void exitExpAdd(LangParser.ExpAddContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LangParser#expMul}.
+	 * @param ctx the parse tree
+	 */
+	void enterExpMul(LangParser.ExpMulContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LangParser#expMul}.
+	 * @param ctx the parse tree
+	 */
+	void exitExpMul(LangParser.ExpMulContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LangParser#expUnary}.
+	 * @param ctx the parse tree
+	 */
+	void enterExpUnary(LangParser.ExpUnaryContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LangParser#expUnary}.
+	 * @param ctx the parse tree
+	 */
+	void exitExpUnary(LangParser.ExpUnaryContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LangParser#expPostfix}.
+	 * @param ctx the parse tree
+	 */
+	void enterExpPostfix(LangParser.ExpPostfixContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LangParser#expPostfix}.
+	 * @param ctx the parse tree
+	 */
+	void exitExpPostfix(LangParser.ExpPostfixContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link LangParser#expPrimary}.
+	 * @param ctx the parse tree
+	 */
+	void enterExpPrimary(LangParser.ExpPrimaryContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link LangParser#expPrimary}.
+	 * @param ctx the parse tree
+	 */
+	void exitExpPrimary(LangParser.ExpPrimaryContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link LangParser#lvalue}.
 	 * @param ctx the parse tree

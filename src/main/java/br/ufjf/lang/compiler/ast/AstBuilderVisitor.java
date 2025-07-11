@@ -138,15 +138,97 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
     }
 
     @Override
-    public Object visitExp(LangParser.ExpContext ctx) {
+    public Object visitExpAnd(LangParser.ExpAndContext ctx) {
+        Expr expr = (Expr) visit(ctx.expEq(0));
+        for (int i = 1; i < ctx.expEq().size(); i++) {
+            Expr right = (Expr) visit(ctx.expEq(i));
+            expr = new ExprBinary("&&", expr, right);
+        }
+        return expr;
+    }
+
+    @Override
+    public Object visitExpEq(LangParser.ExpEqContext ctx) {
+        Expr expr = (Expr) visit(ctx.expRel(0));
+        for (int i = 1; i < ctx.expRel().size(); i++) {
+            String op = ctx.getChild(2 * i - 1).getText();
+            Expr right = (Expr) visit(ctx.expRel(i));
+            expr = new ExprBinary(op, expr, right);
+        }
+        return expr;
+    }
+
+    @Override
+    public Object visitExpRel(LangParser.ExpRelContext ctx) {
+        Expr left = (Expr) visit(ctx.expAdd(0));
+        if (ctx.expAdd().size() > 1) {
+            Expr right = (Expr) visit(ctx.expAdd(1));
+            return new ExprBinary("<", left, right);
+        }
+        return left;
+    }
+
+    @Override
+    public Object visitExpAdd(LangParser.ExpAddContext ctx) {
+        Expr expr = (Expr) visit(ctx.expMul(0));
+        for (int i = 1; i < ctx.expMul().size(); i++) {
+            String op = ctx.getChild(2 * i - 1).getText();
+            Expr right = (Expr) visit(ctx.expMul(i));
+            expr = new ExprBinary(op, expr, right);
+        }
+        return expr;
+    }
+
+    @Override
+    public Object visitExpMul(LangParser.ExpMulContext ctx) {
+        Expr expr = (Expr) visit(ctx.expUnary(0));
+        for (int i = 1; i < ctx.expUnary().size(); i++) {
+            String op = ctx.getChild(2 * i - 1).getText();
+            Expr right = (Expr) visit(ctx.expUnary(i));
+            expr = new ExprBinary(op, expr, right);
+        }
+        return expr;
+    }
+
+    @Override
+    public Object visitExpUnary(LangParser.ExpUnaryContext ctx) {
+        if (ctx.getChildCount() == 2) {
+            String op = ctx.getChild(0).getText(); // '!' ou '-'
+            Expr operand = (Expr) visit(ctx.expUnary());
+            return new ExprUnary(op, operand);
+        }
+        return visit(ctx.expPostfix());
+    }
+
+    @Override
+    public Object visitExpPostfix(LangParser.ExpPostfixContext ctx) {
+        Expr expr = (Expr) visit(ctx.expPrimary());
+        int index = 1;
+        while (index < ctx.getChildCount()) {
+            String op = ctx.getChild(index).getText();
+            if (op.equals("[")) {
+                Expr accessIndex = (Expr) visit(ctx.exp(index / 2));
+                expr = new LValueArrayAccess(expr, accessIndex);
+                index += 3;
+            } else if (op.equals(".")) {
+                String field = ctx.getChild(index + 1).getText();
+                expr = new LValueFieldAccess(expr, field);
+                index += 2;
+            } else {
+                index++;
+            }
+        }
+        return expr;
+    }
+
+    @Override
+    public Object visitExpPrimary(LangParser.ExpPrimaryContext ctx) {
         if (ctx.INT() != null) {
             return new ExprInt(Integer.parseInt(ctx.INT().getText()));
         }
-
         if (ctx.FLOAT() != null) {
             return new ExprFloat(Double.parseDouble(ctx.FLOAT().getText()));
         }
-
         if (ctx.CHAR() != null) {
             String raw = ctx.CHAR().getText();
             char c = raw.charAt(1); // assumindo aspas simples válidas
@@ -157,22 +239,8 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         if (text.equals("true") || text.equals("false")) {
             return new ExprBool(text.equals("true"));
         }
-
         if (text.equals("null")) {
             return new ExprNull();
-        }
-
-        if (ctx.exp().size() == 1 && ctx.getChildCount() == 2) {
-            String op = ctx.getChild(0).getText(); // '!' ou '-'
-            Expr expr = (Expr) visit(ctx.exp(0));
-            return new ExprUnary(op, expr);
-        }
-
-        if (ctx.exp().size() == 2) {
-            String op = ctx.getChild(1).getText(); // operador binário
-            Expr left = (Expr) visit(ctx.exp(0));
-            Expr right = (Expr) visit(ctx.exp(1));
-            return new ExprBinary(op, left, right);
         }
 
         if (ctx.lvalue() != null) {
@@ -180,7 +248,7 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         }
 
         if (ctx.getChildCount() == 3 && ctx.getChild(0).getText().equals("(")) {
-            return new ExprParen((Expr) visit(ctx.exp(0)));
+            return new ExprParen((Expr) visit(ctx.exp()));
         }
 
         if (ctx.getChildCount() >= 2 && ctx.getChild(0).getText().equals("new")) {
@@ -199,8 +267,9 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             return new ExprCall(fname, args, index);
         }
 
-        throw new RuntimeException("Expressão não reconhecida");
+        throw new RuntimeException("Expressão primária não reconhecida");
     }
+
 
     @Override
     public Object visitLvalue(LangParser.LvalueContext ctx) {

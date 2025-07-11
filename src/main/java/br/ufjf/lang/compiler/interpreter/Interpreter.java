@@ -64,7 +64,7 @@ public class Interpreter {
             if (v instanceof LValueBool b) System.out.println(b.value);
             if (v instanceof LValueFloat f) System.out.println(f.value);
             if (v instanceof LValueChar c) System.out.println(c.value);
-            if (v instanceof LValueNull n) System.out.println(null);
+            //if (v instanceof LValueNull n) System.out.println(null);
             return null;
         }
 
@@ -198,20 +198,20 @@ public class Interpreter {
             // Operações aritméticas
                 if (left instanceof LValueInt li && right instanceof LValueInt ri) {
                     return new LValueInt(switch (op) {
-                        case "+" -> li.value + ri.value;
-                        case "-" -> li.value - ri.value;
                         case "*" -> li.value * ri.value;
                         case "/" -> li.value / ri.value;
                         case "%" -> li.value % ri.value;
+                        case "+" -> li.value + ri.value;
+                        case "-" -> li.value - ri.value;
                         default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
                     });
                 } else if (left instanceof LValueFloat lf && right instanceof LValueFloat rf) {
                     return new LValueFloat(switch (op) {
-                        case "+" -> lf.value + rf.value;
-                        case "-" -> lf.value - rf.value;
                         case "*" -> lf.value * rf.value;
                         case "/" -> lf.value / rf.value;
                         case "%" -> lf.value % rf.value;
+                        case "+" -> lf.value + rf.value;
+                        case "-" -> lf.value - rf.value;
                         default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
                     });
                 } 

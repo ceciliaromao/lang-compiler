@@ -39,16 +39,44 @@ cmd         : block
 itcond      : ID ':' exp | exp;
 
 // Expressions
-exp         : exp op exp 
-            | '!' exp 
-            | '-' exp 
-            | lvalue 
-            | '(' exp ')'
-            | 'new' type ('[' exp ']')?
-            | ID '(' exps? ')' '[' exp ']'
-            | 'true' | 'false' | 'null' | INT | FLOAT | CHAR;
+exp
+    : expAnd;
 
-op          : '&&' | '<' | '==' | '!=' | '+' | '-' | '*' | '/' | '%';
+expAnd
+    : expEq ( '&&' expEq )* ;
+
+expEq
+    : expRel ( ( '==' | '!=' ) expRel )* ;
+
+expRel
+    : expAdd ( '<' expAdd )? ;
+
+expAdd
+    : expMul ( ( '+' | '-' ) expMul )* ;
+
+expMul
+    : expUnary ( ( '*' | '/' | '%' ) expUnary )* ;
+
+expUnary
+    : '!' expUnary
+    | '-' expUnary
+    | expPostfix ;
+
+expPostfix
+    : expPrimary ( '[' exp ']' | '.' ID )* ;
+
+expPrimary
+    : lvalue
+    | '(' exp ')'
+    | 'new' type ('[' exp ']')?
+    | ID '(' exps? ')' '[' exp ']'
+    | 'true'
+    | 'false'
+    | 'null'
+    | INT
+    | FLOAT
+    | CHAR
+    ;
 
 // L-values
 lvalue      : ID | lvalue '[' exp ']' | lvalue '.' ID;

@@ -83,11 +83,53 @@ public interface LangVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitExp(LangParser.ExpContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link LangParser#op}.
+	 * Visit a parse tree produced by {@link LangParser#expAnd}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitOp(LangParser.OpContext ctx);
+	T visitExpAnd(LangParser.ExpAndContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link LangParser#expEq}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExpEq(LangParser.ExpEqContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link LangParser#expRel}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExpRel(LangParser.ExpRelContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link LangParser#expAdd}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExpAdd(LangParser.ExpAddContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link LangParser#expMul}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExpMul(LangParser.ExpMulContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link LangParser#expUnary}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExpUnary(LangParser.ExpUnaryContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link LangParser#expPostfix}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExpPostfix(LangParser.ExpPostfixContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link LangParser#expPrimary}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExpPrimary(LangParser.ExpPrimaryContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link LangParser#lvalue}.
 	 * @param ctx the parse tree
