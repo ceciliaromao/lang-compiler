@@ -1,4 +1,4 @@
-//Maria Cecília Romão Santos    202165557C
+//Maria Cecília Romão Santos      202165557C
 //Maria Luisa Riolino Guimarães 202165563C
 
 package br.ufjf.lang.compiler.ast;
@@ -13,7 +13,7 @@ import java.util.Map;
 
 public class AstBuilderVisitor extends LangBaseVisitor<Object> {
 
-    private final Map<String, Type> symbolTable = new HashMap<>(); 
+    private final Map<String, Type> symbolTable = new HashMap<>();
 
     @Override
     public Object visitProg(LangParser.ProgContext ctx) {
@@ -50,15 +50,28 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         return new FunDef(name, params, returnTypes, body);
     }
 
+    // ==================================================================
+    // MÉTODO ALTERADO PARA SE ADEQUAR À NOVA GRAMÁTICA
+    // ==================================================================
     @Override
     public Object visitType(LangParser.TypeContext ctx) {
-        if (ctx.btype() != null) {
-            return visit(ctx.btype());
-        } else {
-            Type inner = (Type) visit(ctx.type());
-            return new TypeArray(inner);
+        // 1. Sempre começamos com o tipo base (btype).
+        Type currentType = (Type) visit(ctx.btype());
+
+        // 2. A nova gramática é `btype ('[' ']')*`. O número de dimensões do array
+        // é determinado pela quantidade de pares de colchetes.
+        // Podemos calcular isso pela contagem de filhos no contexto do parser.
+        // (Total de filhos - 1 para o btype) / 2 (um para '[' e outro para ']').
+        int numDimensions = (ctx.getChildCount() - 1) / 2;
+
+        // 3. Para cada dimensão, envolvemos o tipo atual em um TypeArray.
+        for (int i = 0; i < numDimensions; i++) {
+            currentType = new TypeArray(currentType);
         }
+
+        return currentType;
     }
+    // ==================================================================
 
     @Override
     public Object visitBtype(LangParser.BtypeContext ctx) {
@@ -314,7 +327,7 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         }
         return symbolTable.get(variableName);
     }
-    
+
 
     private Type inferExprType(Expr expr) {
         if (expr instanceof ExprInt) return new TypeBase("Int");
@@ -322,15 +335,15 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         if (expr instanceof ExprFloat) return new TypeBase("Float");
         if (expr instanceof ExprChar) return new TypeBase("Char");
         if (expr instanceof ExprNull) return new TypeBase("Null");
-    
+
         if (expr instanceof ExprLValue lv) {
             if (lv.lvalue instanceof LValueVar var) {
-                return var.type; 
+                return var.type;
             }
             throw new RuntimeException("Tipo não reconhecido para LValue: " + lv.lvalue.getClass().getSimpleName());
         }
-    
+
         return new TypeBase("Unknown");
-    } 
-    
+    }
+
 }

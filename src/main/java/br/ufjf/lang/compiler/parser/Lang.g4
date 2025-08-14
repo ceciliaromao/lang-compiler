@@ -1,5 +1,6 @@
 //Maria Cecília Romão Santos    202165557C
 //Maria Luisa Riolino Guimarães 202165563C
+
 grammar Lang;
 
 // Program structure
@@ -19,7 +20,7 @@ fun         : ID '(' params? ')' (':' type (',' type)*)? cmd;
 params      : ID '::' type (',' ID '::' type)*;
 
 // Type system
-type        : type '[' ']' | btype;
+type        : btype ('[' ']')*;
 
 btype       : 'Int' | 'Char' | 'Bool' | 'Float' | TYID;
 
