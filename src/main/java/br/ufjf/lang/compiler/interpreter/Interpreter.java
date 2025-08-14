@@ -36,7 +36,58 @@ class LValueBool extends LValue {
 class LValueNull extends LValue {
     @Override public String toString() { return "null"; }
 }
+class LValueArray extends LValue {
+    // Usa uma lista para armazenar os valores do array
+    private final List<LValue> values;
 
+    public LValueArray(int size) {
+        // Inicializa o array com um tamanho fixo, preenchido com 'null'
+        this.values = new ArrayList<>(Collections.nCopies(size, new LValueNull()));
+    }
+
+    // Métodos para acessar e modificar o array (serão usados futuramente)
+    public LValue get(int index) {
+        if (index < 0 || index >= values.size()) {
+            throw new RuntimeException("Acesso a array fora dos limites: índice " + index);
+        }
+        return values.get(index);
+    }
+
+    public void set(int index, LValue value) {
+         if (index < 0 || index >= values.size()) {
+            throw new RuntimeException("Atribuição a array fora dos limites: índice " + index);
+        }
+        values.set(index, value);
+    }
+
+    @Override
+    public String toString() {
+        return values.toString();
+    }
+}
+
+// Representa um valor de registro (struct/objeto) em tempo de execução
+class LValueRecord extends LValue {
+    // Usa um mapa para armazenar os campos (nome do campo -> valor)
+    private final Map<String, LValue> fields = new HashMap<>();
+
+    // Métodos para acessar e modificar os campos (serão usados futuramente)
+    public LValue get(String fieldName) {
+        if (!fields.containsKey(fieldName)) {
+            throw new RuntimeException("Acesso a campo inexistente: '" + fieldName + "'");
+        }
+        return fields.get(fieldName);
+    }
+
+    public void set(String fieldName, LValue value) {
+        fields.put(fieldName, value);
+    }
+
+    @Override
+    public String toString() {
+        return fields.toString();
+    }
+}
 
 public class Interpreter {
 
@@ -237,6 +288,29 @@ public class Interpreter {
         if (expr instanceof ExprUnary u) {
             LValue val = evalExpr(u.expr, scopes);
             return evalUnary(u.op, val);
+        }
+
+        if (expr instanceof ExprNew n) {
+
+            // array
+            if (n.size != null) {
+                LValue sizeVal = evalExpr(n.size, scopes);
+
+                if (!(sizeVal instanceof LValueInt i)) {
+                    throw new RuntimeException("O tamanho de um array deve ser um inteiro.");
+                }
+                int size = i.value;
+                if (size < 0) {
+                    throw new RuntimeException("O tamanho de um array não pode ser negativo.");
+                }
+
+                return new LValueArray(size);
+            }
+
+            // record
+            else {
+                return new LValueRecord();
+            }
         }
 
         if (expr instanceof ExprBinary b) {
