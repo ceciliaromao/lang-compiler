@@ -8,6 +8,7 @@ main() {
     print res;
     print '\n';
     print x;
+    
     print '\n';
 }
 

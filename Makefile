@@ -5,12 +5,12 @@ generate:
 # Executar análise sintática:
 run-syn:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -syn src/main/resources/exemplo1.lang
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -syn src/main/resources/sintaxe/errado/attrCHAR.lan
 
 # Interpretar programa:
 run-i:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/exemplo1.lang
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/semantica/certo/full/AFD.lan
 
 clean:
 	mvn clean

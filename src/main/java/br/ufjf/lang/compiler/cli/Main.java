@@ -46,6 +46,17 @@ public class Main {
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         LangParser parser = new LangParser(tokens);
 
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(new BaseErrorListener() {
+            @Override
+            public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                    int line, int charPositionInLine,
+                                    String msg, RecognitionException e) {
+                System.out.println("reject");
+                System.exit(1);
+            }
+        });
+
         parser.removeErrorListeners();
         parser.addErrorListener(new BaseErrorListener() {
             @Override
