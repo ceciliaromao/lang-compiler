@@ -435,6 +435,7 @@ public class Interpreter {
     }
 
     private LValue getLValue(br.ufjf.lang.compiler.ast.LValue lvalue, Stack<Map<String, LValue>> scopes) {
+        // Acesso a variáveis simples
         if (lvalue instanceof LValueVar v) {
             // Procura a variável na pilha, do escopo mais interno (topo) ao mais externo (base).
             for (int i = scopes.size() - 1; i >= 0; i--) {
@@ -445,7 +446,34 @@ public class Interpreter {
             }
             throw new RuntimeException("Variável não encontrada: " + v.name);
         }
-        throw new UnsupportedOperationException("Acesso a LValue complexo (arrays/records) não implementado");
+
+        // Acesso a arrays
+        if (lvalue instanceof LValueArrayAccess arrAccess) {
+            LValue baseValue = getLValue(arrAccess.array, scopes);
+            if (!(baseValue instanceof LValueArray array)) {
+                throw new RuntimeException("Tentativa de acesso por índice em um tipo que não é array.");
+            }
+
+            LValue indexValue = evalExpr(arrAccess.index, scopes);
+            if (!(indexValue instanceof LValueInt i)) {
+                throw new RuntimeException("O índice de um array deve ser um inteiro.");
+            }
+
+            return array.get(i.value);
+        }
+
+        // Acesso a records
+        if (lvalue instanceof LValueRecordAccess recAccess) {
+            LValue baseValue = getLValue(recAccess.record, scopes);
+            if (!(baseValue instanceof LValueRecord record)) {
+                throw new RuntimeException("Tentativa de acesso a campo em um tipo que não é registro.");
+            }
+
+            return record.get(recAccess.field);
+        }
+
+        throw new UnsupportedOperationException("Tipo de LValue não suportado para leitura.");
+
     }
 
     private void setLValue(br.ufjf.lang.compiler.ast.LValue lvalue, LValue val, Stack<Map<String, LValue>> scopes) {
@@ -461,7 +489,34 @@ public class Interpreter {
             scopes.peek().put(v.name, val);
             return;
         }
-        throw new UnsupportedOperationException("Atribuição a LValue complexo (arrays/records) não implementado");
+
+        if (lvalue instanceof LValueArrayAccess arrAccess) {
+        
+            LValue baseValue = getLValue(arrAccess.array, scopes);
+            if (!(baseValue instanceof LValueArray array)) {
+                throw new RuntimeException("Tentativa de atribuição por índice em um tipo que não é array.");
+            }
+
+            LValue indexValue = evalExpr(arrAccess.index, scopes);
+            if (!(indexValue instanceof LValueInt i)) {
+                throw new RuntimeException("O índice de um array deve ser um inteiro.");
+            }
+
+            array.set(i.value, val);
+            return;
+        }
+
+        if (lvalue instanceof LValueRecordAccess recAccess) {
+            LValue baseValue = getLValue(recAccess.record, scopes);
+            if (!(baseValue instanceof LValueRecord record)) {
+                throw new RuntimeException("Tentativa de atribuição a campo em um tipo que não é registro.");
+            }
+
+            record.set(recAccess.field, val);
+            return;
+        }
+
+        throw new UnsupportedOperationException("Tipo de LValue não suportado para atribuição.");
     }
 
     private LValue inferFromInput(String line) {
