@@ -279,8 +279,28 @@ public class Interpreter {
     }
 
     private LValue evalUnary(String op, LValue val) {
-        // A implementação aqui está incompleta como no original.
-        throw new UnsupportedOperationException("Unary op não implementado: " + op);
+        switch (op) {
+            case "!": {
+                if (!(val instanceof LValueBool b)) {
+                    throw new RuntimeException("O operador '!' requer um operando do tipo Bool.");
+                }
+                return new LValueBool(!b.value);
+            }
+            case "-":{
+                if (val instanceof LValueInt i) {
+                    return new LValueInt(-i.value);
+                }
+
+                if (val instanceof LValueFloat f) {
+                    return new LValueFloat(-f.value);
+                }
+
+                throw new RuntimeException("O operador '-' requer um operando numérico (Int ou Float).");
+            }
+            default: {
+                throw new UnsupportedOperationException("Operador unário não suportado: " + op);
+            }
+        }
     }
 
     private LValue evalBinary(String op, LValue left, LValue right) {
@@ -307,24 +327,35 @@ public class Interpreter {
                 }
                 throw new RuntimeException("Tipos incompatíveis para operação: " + left + " " + op + " " + right);
 
-            case "==", "!=", "<":
+            case "==", "!=", "<": {
+                int cmp;
+                
                 if (left instanceof LValueInt li && right instanceof LValueInt ri) {
-                    return new LValueBool(switch (op) {
-                        case "==" -> li.value == ri.value;
-                        case "!=" -> li.value != ri.value;
-                        case "<" -> li.value < ri.value;
-                        default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
-                    });
+                    cmp = Integer.compare(li.value, ri.value);
+                } 
+                else if (left instanceof LValueFloat lf && right instanceof LValueFloat rf) {
+                    cmp = Double.compare(lf.value, rf.value);
                 }
-                // Lógica para outros tipos (Float, Char) não está implementada aqui.
+                else if (left instanceof LValueChar lc && right instanceof LValueChar rc) {
+                    cmp = Character.compare(lc.value, rc.value);
+                }
+                else {
+                    throw new RuntimeException("Tipos incompatíveis para a operação de comparação '" + op + "'");
+                }
 
+                return new LValueBool(switch (op) {
+                    case "==" -> cmp == 0;
+                    case "!=" -> cmp != 0;
+                    case "<"  -> cmp < 0;
+                    default -> false; 
+                });
+            }
             case "&&":
                 if (left instanceof LValueBool lb && right instanceof LValueBool rb) {
                     return new LValueBool(lb.value && rb.value);
                 }
 
             default:
-                // Retornar um valor padrão pode mascarar erros. Lançar exceção é mais seguro.
                 throw new UnsupportedOperationException("Operador binário não implementado ou tipos incompatíveis: " + op);
         }
     }
