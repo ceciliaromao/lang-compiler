@@ -11,7 +11,7 @@ import br.ufjf.lang.compiler.interpreter.Interpreter;
 
 import org.antlr.v4.runtime.*;
 
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Paths;
 
 public class Main {
