@@ -1,4 +1,4 @@
-//Maria Cecília Romão Santos    202165557C
+//Maria Cecília Romão Santos      202165557C
 //Maria Luisa Riolino Guimarães 202165563C
 
 package br.ufjf.lang.compiler.interpreter;
@@ -6,127 +6,196 @@ package br.ufjf.lang.compiler.interpreter;
 import br.ufjf.lang.compiler.ast.*;
 import java.util.*;
 
+// Definições auxiliares para os valores em tempo de execução.
+abstract class LValue {
+    @Override
+    public String toString() {
+        return this.getClass().getSimpleName();
+    }
+}
+class LValueInt extends LValue {
+    public int value;
+    public LValueInt(int v) { this.value = v; }
+    @Override public String toString() { return String.valueOf(value); }
+}
+class LValueFloat extends LValue {
+    public double value;
+    public LValueFloat(double v) { this.value = v; }
+    @Override public String toString() { return String.valueOf(value); }
+}
+class LValueChar extends LValue {
+    public char value;
+    public LValueChar(char v) { this.value = v; }
+    @Override public String toString() { return String.valueOf(value); }
+}
+class LValueBool extends LValue {
+    public boolean value;
+    public LValueBool(boolean v) { this.value = v; }
+    @Override public String toString() { return String.valueOf(value); }
+}
+class LValueNull extends LValue {
+    @Override public String toString() { return "null"; }
+}
+
+
 public class Interpreter {
 
     private final Map<String, FunDef> functionTable = new HashMap<>();
     private final Scanner scanner = new Scanner(System.in);
 
     public void run(Program program) {
-        // carrega as funções no functionTable
+        // Carrega as definições de função em uma tabela para acesso rápido.
         for (Def def : program.definitions) {
             if (def instanceof FunDef fun) {
                 functionTable.put(fun.name, fun);
             }
         }
 
-        // printa functionTable
         System.out.println("Funções disponíveis:");
         for (String funName : functionTable.keySet()) {
             System.out.println(" - " + funName);
         }
 
-        // procura a função main
         FunDef mainFun = functionTable.get("main");
         if (mainFun == null) {
             throw new RuntimeException("Função main não encontrada!");
         }
 
-        // executa a função main
-        executeFunction(mainFun, List.of(), new HashMap<>());
+        // Inicia a execução com uma pilha de escopos nova e vazia.
+        executeFunction(mainFun, List.of(), new Stack<>());
     }
 
-    private List<LValue> executeFunction(FunDef fun, List<LValue> args, Map<String, LValue> globals) {
-        // cria um ambiente local para os parâmetros
-        Map<String, LValue> locals = new HashMap<>(globals);
+    private List<LValue> executeFunction(FunDef fun, List<LValue> args, Stack<Map<String, LValue>> scopes) {
+        // Cria um novo escopo na pilha para os parâmetros e variáveis locais da função.
+        scopes.push(new HashMap<>());
 
         List<FunDef.Param> params = fun.params;
-        for (int i = 0; i < params.size(); i++) {
-            locals.put(params.get(i).name(), args.get(i));
+        if (params.size() != args.size()){
+            throw new RuntimeException("Erro na chamada da função '" + fun.name + "': esperado " + params.size() + " argumentos, mas foram fornecidos " + args.size());
         }
 
-        // executa o corpo
-        return executeCmd(fun.body, locals, globals);
+        for (int i = 0; i < params.size(); i++) {
+            // Adiciona os argumentos da chamada ao escopo atual (topo da pilha).
+            scopes.peek().put(params.get(i).name(), args.get(i));
+        }
+
+        // Executa o corpo da função com a pilha de escopos atualizada.
+        List<LValue> returnValues = executeCmd(fun.body, scopes);
+
+        // Remove o escopo da função da pilha ao final de sua execução.
+        scopes.pop();
+
+        return returnValues;
     }
 
-    private List<LValue> executeCmd(Cmd cmd, Map<String, LValue> locals, Map<String, LValue> globals) {
+    private List<LValue> executeCmd(Cmd cmd, Stack<Map<String, LValue>> scopes) {
 
         if (cmd instanceof CmdBlock block) {
+            // Entra em um novo escopo de bloco.
+            scopes.push(new HashMap<>());
             for (Cmd c : block.commands) {
-                List<LValue> ret = executeCmd(c, locals, globals);
-                if (ret != null) return ret;
+                List<LValue> ret = executeCmd(c, scopes);
+                // Se um comando de retorno for encontrado, propaga o valor imediatamente.
+                if (ret != null) {
+                    scopes.pop(); // Garante que o escopo seja removido antes de retornar.
+                    return ret;
+                }
             }
+            // Sai do escopo do bloco.
+            scopes.pop();
             return null;
         }
 
         if (cmd instanceof CmdPrint p) {
-            LValue v = evalExpr(p.expr, locals, globals);
+            LValue v = evalExpr(p.expr, scopes);
             if (v instanceof LValueInt i) System.out.println(i.value);
-            if (v instanceof LValueBool b) System.out.println(b.value);
-            if (v instanceof LValueFloat f) System.out.println(f.value);
-            if (v instanceof LValueChar c) System.out.println(c.value);
-            if (v instanceof LValueNull n) System.out.println("null");
+            else if (v instanceof LValueBool b) System.out.println(b.value);
+            else if (v instanceof LValueFloat f) System.out.println(f.value);
+            else if (v instanceof LValueChar c) System.out.println(c.value);
+            else if (v instanceof LValueNull) System.out.println("null");
+            else System.out.println(v);
             return null;
         }
 
         if (cmd instanceof CmdReturn r) {
             List<LValue> values = new ArrayList<>();
             for (Expr e : r.values) {
-                values.add(evalExpr(e, locals, globals));
+                values.add(evalExpr(e, scopes));
             }
             return values;
         }
 
         if (cmd instanceof CmdAssign assign) {
-            LValue val = evalExpr(assign.value, locals, globals);
-            setLValue(assign.target, val, locals, globals);
+            LValue val = evalExpr(assign.value, scopes);
+            setLValue(assign.target, val, scopes);
             return null;
         }
 
         if (cmd instanceof CmdIf iff) {
-            LValue cond = evalExpr(iff.condition, locals, globals);
+            LValue cond = evalExpr(iff.condition, scopes);
             if (asBool(cond)) {
-                return executeCmd(iff.thenBranch, locals, globals);
+                return executeCmd(iff.thenBranch, scopes);
             } else if (iff.elseBranch != null) {
-                return executeCmd(iff.elseBranch, locals, globals);
+                return executeCmd(iff.elseBranch, scopes);
             }
             return null;
         }
 
         if (cmd instanceof CmdIterate loop) {
-            while (true) {
-                System.out.println("whileloop");
-                LValue cond = evalExpr(loop.range, locals, globals);
-                if (!asBool(cond)) break;
-                executeCmd(loop.body, locals, globals);
+            LValue rangeVal = evalExpr(loop.range, scopes);
+
+            if (!(rangeVal instanceof LValueInt num)) {
+                throw new RuntimeException("O comando 'iterate' requer um valor inteiro para definir o número de repetições.");
+            }
+
+            int count = num.value;
+            
+            if (count > 0) {
+                scopes.push(new HashMap<>());
+
+                for (int i = 0; i < count; i++) {
+                    if (loop.varName != null) {
+                        scopes.peek().put(loop.varName, new LValueInt(i));
+                    }
+
+                    List<LValue> ret = executeCmd(loop.body, scopes);
+                    if (ret != null) {
+                        scopes.pop(); // Garante a saída do escopo antes de retornar.
+                        return ret;
+                    }
+                }
+
+                scopes.pop();
             }
             return null;
         }
-
+        
         if (cmd instanceof CmdRead read) {
             System.out.print("> ");
             String line = scanner.nextLine();
         
-            // verifica o tipo da variável antes de converter
             if (read.target instanceof LValueVar var) {
+                // A lógica de inferência foi mantida como no original, mas agora usa setLValue
+                // para respeitar o escopo. A abordagem correta seria usar o tipo pré-definido.
                 if (var.type == null) {
-                    // Inferir tipo a partir da entrada
                     LValue inferredVal = inferFromInput(line);
                     var.type = getTypeOf(inferredVal);
-                    locals.put(var.name, inferredVal);
+                    setLValue(var, inferredVal, scopes);
                 } else if (var.type instanceof TypeBase baseType) {
-                    switch (baseType.name) {
-                        case "Int" -> locals.put(var.name, new LValueInt(Integer.parseInt(line)));
+                    LValue readValue = switch (baseType.name) {
+                        case "Int" -> new LValueInt(Integer.parseInt(line));
                         case "Char" -> {
                             if (line.length() != 1) throw new RuntimeException("Esperado um único caractere, obtido: " + line);
-                            locals.put(var.name, new LValueChar(line.charAt(0)));
+                            yield new LValueChar(line.charAt(0));
                         }
-                        case "Float" -> locals.put(var.name, new LValueFloat(Double.parseDouble(line)));
+                        case "Float" -> new LValueFloat(Double.parseDouble(line));
                         case "Bool" -> {
-                            if (!line.equals("true") && !line.equals("false")) throw new RuntimeException("Esperado 'true' ou 'false', obtido: " + line);
-                            locals.put(var.name, new LValueBool(Boolean.parseBoolean(line)));
+                             if (!line.equals("true") && !line.equals("false")) throw new RuntimeException("Esperado 'true' ou 'false', obtido: " + line);
+                             yield new LValueBool(Boolean.parseBoolean(line));
                         }
                         default -> throw new RuntimeException("Tipo não suportado: " + baseType.name);
-                    }
+                    };
+                    setLValue(var, readValue, scopes);
                 } else {
                     throw new RuntimeException("Tipo da variável não reconhecido: " + var.type);
                 }
@@ -138,34 +207,27 @@ public class Interpreter {
 
         if (cmd instanceof CmdCall call) {
             FunDef callee = functionTable.get(call.functionName);
-
-            System.out.println("Chamando função: " + call.functionName);
-            if (callee == null) {
-                // Tenta encontrar a função no escopo global
-                callee = globals.get(call.functionName) instanceof FunDef ? (FunDef) globals.get(call.functionName) : null;
-            }
-
-            //if (callee == null) throw new RuntimeException("Função não encontrada: " + call.functionName);
+            if (callee == null) throw new RuntimeException("Função não encontrada: " + call.functionName);
 
             List<LValue> args = new ArrayList<>();
             for (Expr arg : call.arguments) {
-                args.add(evalExpr(arg, locals, globals));
+                args.add(evalExpr(arg, scopes));
             }
 
-            List<LValue> results = executeFunction(callee, args, globals);
+            List<LValue> results = executeFunction(callee, args, scopes);
 
             if (call.outputTargets != null && results != null) {
                 for (int i = 0; i < call.outputTargets.size(); i++) {
-                    setLValue(call.outputTargets.get(i), results.get(i), locals, globals);
+                    setLValue(call.outputTargets.get(i), results.get(i), scopes);
                 }
             }
             return null;
         }
 
-        throw new RuntimeException("Comando não suportado: " + cmd);
+        throw new RuntimeException("Comando não suportado: " + cmd.getClass().getSimpleName());
     }
 
-    private LValue evalExpr(Expr expr, Map<String, LValue> locals, Map<String, LValue> globals) {
+    private LValue evalExpr(Expr expr, Stack<Map<String, LValue>> scopes) {
         if (expr instanceof ExprInt i) return new LValueInt(i.value);
         if (expr instanceof ExprBool b) return new LValueBool(b.value);
         if (expr instanceof ExprFloat f) return new LValueFloat(f.value);
@@ -173,56 +235,57 @@ public class Interpreter {
         if (expr instanceof ExprNull) return new LValueNull();
 
         if (expr instanceof ExprUnary u) {
-            LValue val = evalExpr(u.expr, locals, globals);
+            LValue val = evalExpr(u.expr, scopes);
             return evalUnary(u.op, val);
         }
 
         if (expr instanceof ExprBinary b) {
-            LValue l = evalExpr(b.left, locals, globals);
-            LValue r = evalExpr(b.right, locals, globals);
+            LValue l = evalExpr(b.left, scopes);
+            LValue r = evalExpr(b.right, scopes);
             return evalBinary(b.op, l, r);
         }
 
         if (expr instanceof ExprLValue lval) {
-            return getLValue(lval.lvalue, locals, globals);
+            return getLValue(lval.lvalue, scopes);
         }
 
         if (expr instanceof ExprCall call) {
             FunDef callee = functionTable.get(call.functionName);
-
-            System.out.println("Chamando função: " + call.functionName);    
-            if (callee == null) {
-                // Tenta encontrar a função no escopo global
-                callee = globals.get(call.functionName) instanceof FunDef ? (FunDef) globals.get(call.functionName) : null;
-            }
             if (callee == null) throw new RuntimeException("Função não encontrada: " + call.functionName);
+
+            System.out.println("Chamando função: " + call.functionName);
             
             List<LValue> args = new ArrayList<>();
             for (Expr arg : call.arguments) {
-                args.add(evalExpr(arg, locals, globals));
+                args.add(evalExpr(arg, scopes));
             }
 
-            List<LValue> results = executeFunction(callee, args, globals);
-            if (results != null && !results.isEmpty()) {
-                return results.get(0);
+            LValue indexValue = evalExpr(call.index, scopes);
+            if (!(indexValue instanceof LValueInt i)) {
+                throw new RuntimeException("O índice de retorno de uma função deve ser um inteiro.");
             }
+            int returnIndex = i.value;
 
-            throw new RuntimeException("A função não possui retorno.");
+            List<LValue> results = executeFunction(callee, args, scopes);
+
+            if (results == null || returnIndex < 0 || returnIndex >= results.size()) {
+                throw new RuntimeException("Índice de retorno " + returnIndex + " fora dos limites para a chamada da função '" + call.functionName + "'");
+            }
+            
+            return results.get(returnIndex);
         }
 
-        throw new RuntimeException("Expressão não suportada: " + expr);
+        throw new RuntimeException("Expressão não suportada: " + expr.getClass().getSimpleName());
     }
 
     private LValue evalUnary(String op, LValue val) {
-        // Implementar de verdade depois
+        // A implementação aqui está incompleta como no original.
         throw new UnsupportedOperationException("Unary op não implementado: " + op);
     }
 
     private LValue evalBinary(String op, LValue left, LValue right) {
-
         switch (op) {
             case "+", "-", "*", "/", "%":
-            // Operações aritméticas
                 if (left instanceof LValueInt li && right instanceof LValueInt ri) {
                     return new LValueInt(switch (op) {
                         case "*" -> li.value * ri.value;
@@ -241,105 +304,81 @@ public class Interpreter {
                         case "-" -> lf.value - rf.value;
                         default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
                     });
-                } 
+                }
                 throw new RuntimeException("Tipos incompatíveis para operação: " + left + " " + op + " " + right);
-            
-                case "==", "!=", "<":
-                // Operações de comparação
+
+            case "==", "!=", "<":
                 if (left instanceof LValueInt li && right instanceof LValueInt ri) {
                     return new LValueBool(switch (op) {
-                        case "==" -> li.value == ri.value;  
+                        case "==" -> li.value == ri.value;
                         case "!=" -> li.value != ri.value;
                         case "<" -> li.value < ri.value;
                         default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
                     });
                 }
+                // Lógica para outros tipos (Float, Char) não está implementada aqui.
+
             case "&&":
-                // Operação lógica AND
                 if (left instanceof LValueBool lb && right instanceof LValueBool rb) {
                     return new LValueBool(lb.value && rb.value);
                 }
-            default:
-                return new LValueBool(false); // Retorna falso para operadores não implementados
-        }
 
+            default:
+                // Retornar um valor padrão pode mascarar erros. Lançar exceção é mais seguro.
+                throw new UnsupportedOperationException("Operador binário não implementado ou tipos incompatíveis: " + op);
+        }
     }
 
-    private LValue getLValue(LValue lvalue, Map<String, LValue> locals, Map<String, LValue> globals) {
+    private LValue getLValue(br.ufjf.lang.compiler.ast.LValue lvalue, Stack<Map<String, LValue>> scopes) {
         if (lvalue instanceof LValueVar v) {
-            if (locals.containsKey(v.name)) return locals.get(v.name);
-            if (globals.containsKey(v.name)) return globals.get(v.name);
+            // Procura a variável na pilha, do escopo mais interno (topo) ao mais externo (base).
+            for (int i = scopes.size() - 1; i >= 0; i--) {
+                Map<String, LValue> currentScope = scopes.get(i);
+                if (currentScope.containsKey(v.name)) {
+                    return currentScope.get(v.name);
+                }
+            }
             throw new RuntimeException("Variável não encontrada: " + v.name);
         }
-        
-        throw new UnsupportedOperationException("Acesso LValue complexo não implementado");
+        throw new UnsupportedOperationException("Acesso a LValue complexo (arrays/records) não implementado");
     }
 
-    private void setLValue(LValue lvalue, LValue val, Map<String, LValue> locals, Map<String, LValue> globals) {
-        // Verifica se o LValue é uma variável
+    private void setLValue(br.ufjf.lang.compiler.ast.LValue lvalue, LValue val, Stack<Map<String, LValue>> scopes) {
         if (lvalue instanceof LValueVar v) {
-            // Verifica se o tipo do valor é compatível com o tipo da variável
-            if (v.type instanceof TypeBase baseType) {
-                switch (baseType.name) {
-                    case "Int" -> {
-                        if (!(val instanceof LValueInt)) {
-                            throw new RuntimeException("Tipo incompatível: esperado 'int', obtido: " + val.getClass().getSimpleName());
-                        }
-                    }
-                    case "Char" -> {
-                        if (!(val instanceof LValueChar)) {
-                            throw new RuntimeException("Tipo incompatível: esperado 'char', obtido: " + val.getClass().getSimpleName());
-                        }
-                    }
-                    case "Float" -> {
-                        if (!(val instanceof LValueFloat)) {
-                            throw new RuntimeException("Tipo incompatível: esperado 'float', obtido: " + val.getClass().getSimpleName());
-                        }
-                    }
-                    case "Bool" -> {
-                        if (!(val instanceof LValueBool)) {
-                            throw new RuntimeException("Tipo incompatível: esperado 'bool', obtido: " + val.getClass().getSimpleName());
-                        }
-                    }
-                    default -> throw new RuntimeException("Tipo não suportado: " + baseType.name);
+            // Procura a variável para atualizá-la, começando do escopo mais interno.
+            for (int i = scopes.size() - 1; i >= 0; i--) {
+                if (scopes.get(i).containsKey(v.name)) {
+                    scopes.get(i).put(v.name, val);
+                    return;
                 }
-            } else {
-                throw new RuntimeException("Tipo da variável não reconhecido: " + v.type);
             }
-    
-            // Atribui o valor à variável no escopo local
-            locals.put(v.name, val);
+            // Se não encontrou em nenhum escopo, declara a variável no escopo atual (topo da pilha).
+            scopes.peek().put(v.name, val);
             return;
         }
-    
-        // Caso o LValue não seja uma variável, lança uma exceção
-        throw new UnsupportedOperationException("Atribuição LValue complexo não implementado");
+        throw new UnsupportedOperationException("Atribuição a LValue complexo (arrays/records) não implementado");
     }
 
     private LValue inferFromInput(String line) {
-        // Tenta inferir int
         try {
             return new LValueInt(Integer.parseInt(line));
         } catch (NumberFormatException ignored) {}
-    
-        // Tenta inferir float
+
         try {
             return new LValueFloat(Double.parseDouble(line));
         } catch (NumberFormatException ignored) {}
-    
-        // Tenta inferir bool
+
         if (line.equals("true") || line.equals("false")) {
             return new LValueBool(Boolean.parseBoolean(line));
         }
-    
-        // Tenta inferir char
+
         if (line.length() == 1) {
             return new LValueChar(line.charAt(0));
         }
-    
+
         throw new RuntimeException("Não foi possível inferir o tipo da entrada: " + line);
     }
-    
+
     private Type getTypeOf(LValue val) {
         if (val instanceof LValueInt) return new TypeBase("Int");
         if (val instanceof LValueFloat) return new TypeBase("Float");
@@ -347,9 +386,9 @@ public class Interpreter {
         if (val instanceof LValueChar) return new TypeBase("Char");
         return new TypeBase("Unknown");
     }
-    
+
     private boolean asBool(LValue v) {
         if (v instanceof LValueBool b) return b.value;
-        throw new RuntimeException("Esperado Bool, obtido: " + v);
+        throw new RuntimeException("Esperado um valor Booleano, mas o tipo obtido foi: " + v.getClass().getSimpleName());
     }
 }
