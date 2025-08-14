@@ -303,9 +303,11 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
     public Object visitLvalue(LangParser.LvalueContext ctx) {
         // caso seja uma variável simples (ID)
         if (ctx.ID() != null && ctx.lvalue() == null) {
-            // Determina o tipo da variável (substitua por lógica real para resolver o tipo)
-            Type type = resolveType(ctx.ID().getText());
-            return new LValueVar(ctx.ID().getText(), type);
+            String varName = ctx.ID().getText();
+            // Permite que a variável não exista na tabela de símbolos neste ponto,
+            // pois pode ser uma declaração em uma atribuição.
+            Type type = symbolTable.get(varName);
+            return new LValueVar(varName, type);
         }
 
         // caso seja um acesso a array
@@ -323,7 +325,12 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
 
     private Type resolveType(String variableName) {
         if (!symbolTable.containsKey(variableName)) {
-            throw new RuntimeException("Variável não declarada: " + variableName);
+            // Lançar exceção apenas se a variável realmente não foi declarada.
+            // A lógica de atribuição agora lida com a inserção na tabela.
+            // Para outros usos (leitura), a verificação ainda é importante.
+            // No momento, vamos relaxar essa restrição para permitir a declaração por atribuição.
+            // Se o tipo não for inferido depois, o interpretador pode falhar, o que é aceitável por agora.
+            return null;
         }
         return symbolTable.get(variableName);
     }

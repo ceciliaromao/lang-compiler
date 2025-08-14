@@ -113,7 +113,15 @@ public class Interpreter {
         }
 
         // Inicia a execução com uma pilha de escopos nova e vazia.
-        executeFunction(mainFun, List.of(), new Stack<>());
+        List<LValue> returnValues = executeFunction(mainFun, List.of(), new Stack<>());
+
+        // Imprime os valores de retorno da função main, se houver.
+        if (returnValues != null && !returnValues.isEmpty()) {
+            System.out.println("Retorno de main:");
+            for (LValue val : returnValues) {
+                System.out.println(" - " + val);
+            }
+        }
     }
 
     private List<LValue> executeFunction(FunDef fun, List<LValue> args, Stack<Map<String, LValue>> scopes) {
