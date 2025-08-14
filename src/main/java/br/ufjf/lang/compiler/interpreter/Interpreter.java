@@ -112,8 +112,34 @@ public class Interpreter {
             throw new RuntimeException("Função main não encontrada!");
         }
 
+        // Cria argumentos padrão para a função main, se necessário.
+        List<LValue> mainArgs = new ArrayList<>();
+        for (FunDef.Param param : mainFun.params) {
+            if (param.type() instanceof TypeBase base) {
+                switch (base.name) {
+                    case "Int" -> mainArgs.add(new LValueInt(0));
+                    case "Float" -> mainArgs.add(new LValueFloat(0.0));
+                    case "Char" -> mainArgs.add(new LValueChar('\0'));
+                    case "Bool" -> mainArgs.add(new LValueBool(false));
+                    default -> mainArgs.add(new LValueNull()); // Para records ou outros tipos
+                }
+            } else if (param.type() instanceof TypeArray) {
+                mainArgs.add(new LValueArray(0)); // Array de tamanho 0 como padrão
+            } else {
+                mainArgs.add(new LValueNull());
+            }
+        }
+
         // Inicia a execução com uma pilha de escopos nova e vazia.
-        executeFunction(mainFun, List.of(), new Stack<>());
+        List<LValue> returnValues = executeFunction(mainFun, mainArgs, new Stack<>());
+
+        // Imprime os valores de retorno da função main, se houver.
+        if (returnValues != null && !returnValues.isEmpty()) {
+            System.out.println("Retorno de main:");
+            for (LValue val : returnValues) {
+                System.out.println(" - " + val);
+            }
+        }
     }
 
     private List<LValue> executeFunction(FunDef fun, List<LValue> args, Stack<Map<String, LValue>> scopes) {
