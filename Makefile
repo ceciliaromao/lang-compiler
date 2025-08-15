@@ -12,6 +12,11 @@ run-i:
 	mvn package
 	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/semantica/errado/ControleNotas.lan
 
+# Executar a verificação de tipos:
+run-t:
+	mvn package
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -t src/main/resources/types/simple/teste0.lan
+
 clean:
 	mvn clean
 	rm -rf src/main/java/br/ufjf/lang/compiler/parser/Lang*.java
