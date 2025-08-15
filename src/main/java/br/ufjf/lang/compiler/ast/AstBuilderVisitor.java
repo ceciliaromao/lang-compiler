@@ -25,6 +25,28 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
     }
 
     @Override
+    public Object visitData(LangParser.DataContext ctx) {
+        String name = ctx.TYID().getText();
+        boolean isAbstract = ctx.getChild(0).getText().equals("abstract");
+
+        List<FieldDecl> fields = new ArrayList<>();
+        for (var declCtx : ctx.decl()) {
+            fields.add((FieldDecl) visit(declCtx));
+        }
+        
+        // Funções dentro de 'data' não são suportadas nesta etapa
+        
+        return new DataDef(name, isAbstract, fields);
+    }
+
+    @Override
+    public Object visitDecl(LangParser.DeclContext ctx) {
+        String name = ctx.ID().getText();
+        Type type = (Type) visit(ctx.type());
+        return new FieldDecl(name, type);
+    }
+
+    @Override
     public Object visitFun(LangParser.FunContext ctx) {
         String name = ctx.ID().getText();
 
@@ -107,8 +129,10 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
                 return new CmdIf(cond, thenBranch, elseBranch);
             }
             case "iterate" -> {
-                String var = ctx.ID() != null ? ctx.ID().getText() : null;
-                Expr cond = (Expr) visit(ctx.exp(0));
+                // A lógica para 'iterate' precisa lidar com a estrutura 'itcond'
+                Object[] itcondResult = (Object[]) visit(ctx.itcond());
+                String var = (String) itcondResult[0];
+                Expr cond = (Expr) itcondResult[1];
                 Cmd body = (Cmd) visit(ctx.cmd(0));
                 return new CmdIterate(var, cond, body);
             }
@@ -163,6 +187,21 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             cmds.add((Cmd) visit(c));
         }
         return new CmdBlock(cmds);
+    }
+
+    @Override
+    public Object visitItcond(LangParser.ItcondContext ctx) {
+        String var = null;
+        Expr expr;
+        if (ctx.ID() != null) {
+            // Caso: 'ID : exp'
+            var = ctx.ID().getText();
+            expr = (Expr) visit(ctx.exp());
+        } else {
+            // Caso: 'exp'
+            expr = (Expr) visit(ctx.exp());
+        }
+        return new Object[]{var, expr};
     }
 
     @Override
@@ -259,7 +298,21 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         }
         if (ctx.CHAR() != null) {
             String raw = ctx.CHAR().getText();
-            char c = raw.charAt(1); // assumindo aspas simples válidas
+            String content = raw.substring(1, raw.length() - 1);
+            char c;
+            if (content.length() > 1 && content.charAt(0) == '\\') {
+                c = switch (content.charAt(1)) {
+                    case 'n' -> '\n';
+                    case 't' -> '\t';
+                    case 'r' -> '\r';
+                    case 'b' -> '\b';
+                    case '\\' -> '\\';
+                    case '\'' -> '\'';
+                    default -> content.charAt(1); // Fallback, a gramática deve evitar isso
+                };
+            } else {
+                c = content.charAt(0);
+            }
             return new ExprChar(c);
         }
 

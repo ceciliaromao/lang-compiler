@@ -92,13 +92,16 @@ class LValueRecord extends LValue {
 public class Interpreter {
 
     private final Map<String, FunDef> functionTable = new HashMap<>();
+    private final Map<String, DataDef> dataTable = new HashMap<>();
     private final Scanner scanner = new Scanner(System.in);
 
     public void run(Program program) {
-        // Carrega as definições de função em uma tabela para acesso rápido.
+        // Carrega as definições de função e de dados em tabelas para acesso rápido.
         for (Def def : program.definitions) {
             if (def instanceof FunDef fun) {
                 functionTable.put(fun.name, fun);
+            } else if (def instanceof DataDef data) {
+                dataTable.put(data.name, data);
             }
         }
 
@@ -121,7 +124,19 @@ public class Interpreter {
                     case "Float" -> mainArgs.add(new LValueFloat(0.0));
                     case "Char" -> mainArgs.add(new LValueChar('\0'));
                     case "Bool" -> mainArgs.add(new LValueBool(false));
-                    default -> mainArgs.add(new LValueNull()); // Para records ou outros tipos
+                    default -> {
+                        // Assume que é um tipo de registro.
+                        DataDef dataDef = dataTable.get(base.name);
+                        if (dataDef != null) {
+                            LValueRecord record = new LValueRecord();
+                            for (FieldDecl field : dataDef.fields) {
+                                record.set(field.name, new LValueNull());
+                            }
+                            mainArgs.add(record);
+                        } else {
+                            mainArgs.add(new LValueNull()); // Fallback se o tipo não for encontrado
+                        }
+                    }
                 }
             } else if (param.type() instanceof TypeArray) {
                 mainArgs.add(new LValueArray(0)); // Array de tamanho 0 como padrão
@@ -310,6 +325,7 @@ public class Interpreter {
         if (expr instanceof ExprFloat f) return new LValueFloat(f.value);
         if (expr instanceof ExprChar c) return new LValueChar(c.value);
         if (expr instanceof ExprNull) return new LValueNull();
+        if (expr instanceof ExprParen p) return evalExpr(p.inner, scopes);
 
         if (expr instanceof ExprUnary u) {
             LValue val = evalExpr(u.expr, scopes);
@@ -335,6 +351,17 @@ public class Interpreter {
 
             // record
             else {
+                if (n.type instanceof TypeBase base) {
+                    DataDef dataDef = dataTable.get(base.name);
+                    if (dataDef != null) {
+                        LValueRecord record = new LValueRecord();
+                        for (FieldDecl field : dataDef.fields) {
+                            record.set(field.name, new LValueNull());
+                        }
+                        return record;
+                    }
+                }
+                // Se não for um tipo base conhecido ou não estiver na dataTable, retorna um registro vazio
                 return new LValueRecord();
             }
         }
@@ -406,6 +433,20 @@ public class Interpreter {
     private LValue evalBinary(String op, LValue left, LValue right) {
         switch (op) {
             case "+", "-", "*", "/", "%":
+                // Promoção de tipo: se um for Float, converte o outro para Float.
+                if (left instanceof LValueFloat || right instanceof LValueFloat) {
+                    double l = (left instanceof LValueFloat f) ? f.value : ((LValueInt) left).value;
+                    double r = (right instanceof LValueFloat f) ? f.value : ((LValueInt) right).value;
+                    return new LValueFloat(switch (op) {
+                        case "*" -> l * r;
+                        case "/" -> l / r;
+                        case "%" -> l % r;
+                        case "+" -> l + r;
+                        case "-" -> l - r;
+                        default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
+                    });
+                }
+                
                 if (left instanceof LValueInt li && right instanceof LValueInt ri) {
                     return new LValueInt(switch (op) {
                         case "*" -> li.value * ri.value;
@@ -413,15 +454,6 @@ public class Interpreter {
                         case "%" -> li.value % ri.value;
                         case "+" -> li.value + ri.value;
                         case "-" -> li.value - ri.value;
-                        default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
-                    });
-                } else if (left instanceof LValueFloat lf && right instanceof LValueFloat rf) {
-                    return new LValueFloat(switch (op) {
-                        case "*" -> lf.value * rf.value;
-                        case "/" -> lf.value / rf.value;
-                        case "%" -> lf.value % rf.value;
-                        case "+" -> lf.value + rf.value;
-                        case "-" -> lf.value - rf.value;
                         default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
                     });
                 }
@@ -450,10 +482,11 @@ public class Interpreter {
                     default -> false; 
                 });
             }
-            case "&&":
-                if (left instanceof LValueBool lb && right instanceof LValueBool rb) {
-                    return new LValueBool(lb.value && rb.value);
-                }
+            case "&&": {
+                boolean l = asBool(left);
+                boolean r = asBool(right);
+                return new LValueBool(l && r);
+            }
 
             default:
                 throw new UnsupportedOperationException("Operador binário não implementado ou tipos incompatíveis: " + op);
@@ -575,6 +608,12 @@ public class Interpreter {
 
     private boolean asBool(LValue v) {
         if (v instanceof LValueBool b) return b.value;
-        throw new RuntimeException("Esperado um valor Booleano, mas o tipo obtido foi: " + v.getClass().getSimpleName());
+        if (v instanceof LValueInt i) return i.value != 0;
+        if (v instanceof LValueFloat f) return f.value != 0.0;
+        if (v instanceof LValueChar c) return c.value != '\0';
+        if (v instanceof LValueNull) return false;
+        // Para LValueArray e LValueRecord, poderíamos considerar o tamanho/nº de campos,
+        // mas por enquanto vamos tratá-los como 'true' se não forem nulos.
+        return true;
     }
 }
