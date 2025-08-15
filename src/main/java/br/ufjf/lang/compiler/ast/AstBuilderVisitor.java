@@ -19,7 +19,12 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
     public Object visitProg(LangParser.ProgContext ctx) {
         List<Def> defs = new ArrayList<>();
         for (var defCtx : ctx.def()) {
-            defs.add((Def) visit(defCtx));
+            Object result = visit(defCtx);
+            if (result instanceof List) {
+                defs.addAll((List<Def>) result);
+            } else {
+                defs.add((Def) result);
+            }
         }
         return new Program(defs);
     }
@@ -30,13 +35,26 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         boolean isAbstract = ctx.getChild(0).getText().equals("abstract");
 
         List<FieldDecl> fields = new ArrayList<>();
+        List<FunDef> functions = new ArrayList<>();
+
         for (var declCtx : ctx.decl()) {
             fields.add((FieldDecl) visit(declCtx));
         }
+
+        for (var funCtx : ctx.fun()) {
+            functions.add((FunDef) visit(funCtx));
+        }
         
-        // Funções dentro de 'data' não são suportadas nesta etapa
-        
-        return new DataDef(name, isAbstract, fields);
+        DataDef dataDef = new DataDef(name, isAbstract, fields);
+
+        if (isAbstract) {
+            List<Def> allDefs = new ArrayList<>();
+            allDefs.add(dataDef);
+            allDefs.addAll(functions);
+            return allDefs;
+        } else {
+            return dataDef;
+        }
     }
 
     @Override
@@ -148,9 +166,11 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             LValue target = (LValue) visit(ctx.lvalue(0));
             Expr value = (Expr) visit(ctx.exp(0));
 
-            // inferência simples
-            Type valueType = inferExprType(value);
-            symbolTable.put(((LValueVar)target).name, valueType);
+            // inferência simples, apenas para variáveis simples
+            if (target instanceof LValueVar var) {
+                Type valueType = inferExprType(value);
+                symbolTable.put(var.name, valueType);
+            }
 
             return new CmdAssign(target, value);
         }

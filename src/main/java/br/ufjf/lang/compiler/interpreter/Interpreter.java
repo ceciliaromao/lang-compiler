@@ -64,6 +64,10 @@ class LValueArray extends LValue {
     public String toString() {
         return values.toString();
     }
+
+    public int size() {
+        return values.size();
+    }
 }
 
 // Representa um valor de registro (struct/objeto) em tempo de execução
@@ -235,12 +239,15 @@ public class Interpreter {
 
         if (cmd instanceof CmdIterate loop) {
             LValue rangeVal = evalExpr(loop.range, scopes);
+            int count;
 
-            if (!(rangeVal instanceof LValueInt num)) {
-                throw new RuntimeException("O comando 'iterate' requer um valor inteiro para definir o número de repetições.");
+            if (rangeVal instanceof LValueInt num) {
+                count = num.value;
+            } else if (rangeVal instanceof LValueArray arr) {
+                count = arr.size();
+            } else {
+                throw new RuntimeException("O comando 'iterate' requer um valor inteiro ou um array.");
             }
-
-            int count = num.value;
             
             if (count > 0) {
                 scopes.push(new HashMap<>());
