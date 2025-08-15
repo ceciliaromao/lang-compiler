@@ -100,5 +100,6 @@ public class Main {
         // executa interpreteador
         Interpreter interpreter = new Interpreter();
         interpreter.run(ast);
+        System.out.println();
     }
 }
