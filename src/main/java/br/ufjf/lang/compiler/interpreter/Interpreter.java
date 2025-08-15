@@ -49,6 +49,7 @@ class LValueArray extends LValue {
         this.values = new ArrayList<>(Collections.nCopies(size, new LValueNull()));
     }
 
+    // Métodos para acessar e modificar o array (serão usados futuramente)
     public LValue get(int index) {
         if (index < 0 || index >= values.size()) {
             throw new RuntimeException("Acesso a array fora dos limites: índice " + index);
@@ -114,6 +115,10 @@ public class Interpreter {
         for (String funName : functionTable.keySet()) {
             System.out.println(" - " + funName);
         }
+        // System.out.println("Funções disponíveis:");
+        // for (String funName : functionTable.keySet()) {
+        //     System.out.println(" - " + funName);
+        // }
 
         FunDef mainFun = functionTable.get("main");
         if (mainFun == null) {
@@ -211,6 +216,12 @@ public class Interpreter {
             else if (v instanceof LValueChar c) System.out.println(c.value);
             else if (v instanceof LValueNull) System.out.println("null");
             else System.out.println(v);
+            if (v instanceof LValueInt i) System.out.print(i.value);
+            else if (v instanceof LValueBool b) System.out.print(b.value);
+            else if (v instanceof LValueFloat f) System.out.print(f.value);
+            else if (v instanceof LValueChar c) System.out.print(c.value);
+            else if (v instanceof LValueNull) System.out.print("null");
+            else System.out.print(v);
             return null;
         }
 
