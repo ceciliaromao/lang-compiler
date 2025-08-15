@@ -10,7 +10,7 @@ run-syn:
 # Interpretar programa:
 run-i:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/sintaxe/certo/
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/semantica/certo/simple/equivChar.lan
 
 clean:
 	mvn clean
