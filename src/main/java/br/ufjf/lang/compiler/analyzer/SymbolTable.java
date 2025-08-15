@@ -1,5 +1,6 @@
 package br.ufjf.lang.compiler.analyzer;
 
+import br.ufjf.lang.compiler.ast.Type;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
@@ -20,7 +21,6 @@ class SymbolTable {
     // Adiciona um símbolo (variável) ao escopo atual
     public void add(String name, Type type) {
         if (scopes.peek().containsKey(name)) {
-            [cite_start]
             throw new SemanticError("Erro: Variável '" + name + "' já foi declarada neste escopo.");
         }
         scopes.peek().put(name, type);

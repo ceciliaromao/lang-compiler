@@ -1,3 +1,5 @@
 package br.ufjf.lang.compiler.ast;
 
-public interface Type {}
+public interface Type {
+    boolean isA(String typeName);
+}

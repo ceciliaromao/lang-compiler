@@ -2,11 +2,11 @@ package br.ufjf.lang.compiler.ast;
 
 public class ExprNew implements Expr {
     public Type type;
-    public final Type type;
+    public final Type typeToCreate;
     public final Expr size; // pode ser null se for apenas "new T"
 
-    public ExprNew(Type type, Expr size) {
-        this.type = type;
+    public ExprNew(Type typeToCreate, Expr size) {
+        this.typeToCreate = typeToCreate;
         this.size = size;
     }
 }
