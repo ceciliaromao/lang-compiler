@@ -10,7 +10,7 @@ run-syn:
 # Interpretar programa:
 run-i:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/sintaxe/certo/function_call_expr.lan
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/sintaxe/certo/instanciate.lan
 
 clean:
 	mvn clean

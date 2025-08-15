@@ -12,6 +12,6 @@ fat(d :: Int ) : Int , Char {
 
 main(x :: Ponto) {
    print x.x;
-   z = fat(0)[0] + 2;
+   z = f(0)[0] + 2;
 }
 
