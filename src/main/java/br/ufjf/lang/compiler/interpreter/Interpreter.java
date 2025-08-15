@@ -52,7 +52,8 @@ class LValueArray extends LValue {
     // Métodos para acessar e modificar o array (serão usados futuramente)
     public LValue get(int index) {
         if (index < 0 || index >= values.size()) {
-            throw new RuntimeException("Acesso a array fora dos limites: índice " + index);
+            // Semântica da linguagem: acesso fora dos limites retorna null.
+            return new LValueNull();
         }
         return values.get(index);
     }
@@ -111,10 +112,6 @@ public class Interpreter {
             }
         }
 
-        System.out.println("Funções disponíveis:");
-        for (String funName : functionTable.keySet()) {
-            System.out.println(" - " + funName);
-        }
         // System.out.println("Funções disponíveis:");
         // for (String funName : functionTable.keySet()) {
         //     System.out.println(" - " + funName);
@@ -193,29 +190,20 @@ public class Interpreter {
     private List<LValue> executeCmd(Cmd cmd, Stack<Map<String, LValue>> scopes) {
 
         if (cmd instanceof CmdBlock block) {
-            // Entra em um novo escopo de bloco.
-            scopes.push(new HashMap<>());
+            // Blocos não criam novos escopos, eles executam no escopo atual.
+            // Apenas funções criam novos escopos.
             for (Cmd c : block.commands) {
                 List<LValue> ret = executeCmd(c, scopes);
                 // Se um comando de retorno for encontrado, propaga o valor imediatamente.
                 if (ret != null) {
-                    scopes.pop(); // Garante que o escopo seja removido antes de retornar.
                     return ret;
                 }
             }
-            // Sai do escopo do bloco.
-            scopes.pop();
             return null;
         }
 
         if (cmd instanceof CmdPrint p) {
             LValue v = evalExpr(p.expr, scopes);
-            if (v instanceof LValueInt i) System.out.println(i.value);
-            else if (v instanceof LValueBool b) System.out.println(b.value);
-            else if (v instanceof LValueFloat f) System.out.println(f.value);
-            else if (v instanceof LValueChar c) System.out.println(c.value);
-            else if (v instanceof LValueNull) System.out.println("null");
-            else System.out.println(v);
             if (v instanceof LValueInt i) System.out.print(i.value);
             else if (v instanceof LValueBool b) System.out.print(b.value);
             else if (v instanceof LValueFloat f) System.out.print(f.value);
@@ -262,21 +250,23 @@ public class Interpreter {
             }
             
             if (count > 0) {
-                scopes.push(new HashMap<>());
+                // Modifica ou declara a variável de loop no escopo ATUAL.
+                Map<String, LValue> currentScope = scopes.peek();
 
                 for (int i = 0; i < count; i++) {
                     if (loop.varName != null) {
-                        scopes.peek().put(loop.varName, new LValueInt(i));
+                        if (rangeVal instanceof LValueArray arr) {
+                            currentScope.put(loop.varName, arr.get(i));
+                        } else {
+                            currentScope.put(loop.varName, new LValueInt(i));
+                        }
                     }
 
                     List<LValue> ret = executeCmd(loop.body, scopes);
                     if (ret != null) {
-                        scopes.pop(); // Garante a saída do escopo antes de retornar.
-                        return ret;
+                        return ret; // Retorna diretamente, sem mexer no escopo
                     }
                 }
-
-                scopes.pop();
             }
             return null;
         }
@@ -378,7 +368,7 @@ public class Interpreter {
                         return record;
                     }
                 }
-                // Se não for um tipo base conhecido ou não estiver na dataTable, retorna um registro vazio
+                // Se não for um tipo base conhecido ou não estiver na dataTable, retorna um registro novo e vazio
                 return new LValueRecord();
             }
         }
@@ -397,7 +387,7 @@ public class Interpreter {
             FunDef callee = functionTable.get(call.functionName);
             if (callee == null) throw new RuntimeException("Função não encontrada: " + call.functionName);
 
-            System.out.println("Chamando função: " + call.functionName);
+            // System.out.println("Chamando função: " + call.functionName);
             
             List<LValue> args = new ArrayList<>();
             for (Expr arg : call.arguments) {
@@ -450,6 +440,10 @@ public class Interpreter {
     private LValue evalBinary(String op, LValue left, LValue right) {
         switch (op) {
             case "+", "-", "*", "/", "%":
+                // Coerção de null para 0 em contexto aritmético.
+                if (left instanceof LValueNull) left = new LValueInt(0);
+                if (right instanceof LValueNull) right = new LValueInt(0);
+
                 // Promoção de tipo: se um for Float, converte o outro para Float.
                 if (left instanceof LValueFloat || right instanceof LValueFloat) {
                     double l = (left instanceof LValueFloat f) ? f.value : ((LValueInt) left).value;
@@ -477,6 +471,16 @@ public class Interpreter {
                 throw new RuntimeException("Tipos incompatíveis para operação: " + left + " " + op + " " + right);
 
             case "==", "!=", "<": {
+                // Comparações com null
+                if (left instanceof LValueNull || right instanceof LValueNull) {
+                    if (op.equals("<")) {
+                        return new LValueBool(false); // null nunca é menor que algo.
+                    }
+                    boolean result = left instanceof LValueNull && right instanceof LValueNull;
+                     if (op.equals("!=")) return new LValueBool(!result);
+                     return new LValueBool(result);
+                }
+
                 int cmp;
                 
                 if (left instanceof LValueInt li && right instanceof LValueInt ri) {
@@ -554,14 +558,8 @@ public class Interpreter {
 
     private void setLValue(br.ufjf.lang.compiler.ast.LValue lvalue, LValue val, Stack<Map<String, LValue>> scopes) {
         if (lvalue instanceof LValueVar v) {
-            // Procura a variável para atualizá-la, começando do escopo mais interno.
-            for (int i = scopes.size() - 1; i >= 0; i--) {
-                if (scopes.get(i).containsKey(v.name)) {
-                    scopes.get(i).put(v.name, val);
-                    return;
-                }
-            }
-            // Se não encontrou em nenhum escopo, declara a variável no escopo atual (topo da pilha).
+            // A atribuição sempre acontece no escopo mais interno (o atual).
+            // Se a variável já existe em um escopo externo, esta nova a "sombra".
             scopes.peek().put(v.name, val);
             return;
         }

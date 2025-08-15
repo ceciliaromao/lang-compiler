@@ -20,6 +20,14 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         List<Def> defs = new ArrayList<>();
         for (var defCtx : ctx.def()) {
             Object result = visit(defCtx);
+
+            // Verificação semântica: proíbe funções globais que não sejam 'main'.
+            if (result instanceof FunDef funDef) {
+                if (!funDef.name.equals("main")) {
+                    throw new RuntimeException("Erro Semântico: A função '" + funDef.name + "' não pode ser definida no escopo global. Apenas 'main' ou funções dentro de 'abstract data' são permitidas.");
+                }
+            }
+
             if (result instanceof List) {
                 defs.addAll((List<Def>) result);
             } else {
@@ -47,14 +55,11 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         
         DataDef dataDef = new DataDef(name, isAbstract, fields);
 
-        if (isAbstract) {
-            List<Def> allDefs = new ArrayList<>();
-            allDefs.add(dataDef);
-            allDefs.addAll(functions);
-            return allDefs;
-        } else {
-            return dataDef;
-        }
+        // Eleva as funções para o escopo global
+        List<Def> allDefs = new ArrayList<>();
+        allDefs.add(dataDef);
+        allDefs.addAll(functions);
+        return allDefs;
     }
 
     @Override
@@ -154,13 +159,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         if (ctx.lvalue() != null && ctx.getChild(1).getText().equals("=")) {
             LValue target = (LValue) visit(ctx.lvalue(0));
             Expr value = (Expr) visit(ctx.exp(0));
-
-            // inferência simples, apenas para variáveis simples
-            if (target instanceof LValueVar var) {
-                Type valueType = inferExprType(value);
-                symbolTable.put(var.name, valueType);
-            }
-
             return new CmdAssign(target, value);
         }
 
@@ -324,11 +322,10 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         }
 
         String text = ctx.getText();
-        if (text.equals("true") || text.equals("false")) {
-            return new ExprBool(text.equals("true"));
-        }
-        if (text.equals("null")) {
-            return new ExprNull();
+        if (ctx.getChildCount() == 1) {
+            if (text.equals("true")) return new ExprBool(true);
+            if (text.equals("false")) return new ExprBool(false);
+            if (text.equals("null")) return new ExprNull();
         }
 
         if (ctx.lvalue() != null) {
@@ -345,17 +342,24 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             return new ExprNew(type, size);
         }
 
-        if (ctx.ID() != null && ctx.exps() != null) {
+        // Trata chamadas de função, com ou sem índice de retorno.
+        if (ctx.ID() != null && ctx.getChildCount() > 1 && ctx.getChild(1).getText().equals("(")) {
             String fname = ctx.ID().getText();
             List<Expr> args = new ArrayList<>();
-            for (var e : ctx.exps().exp()) {
-                args.add((Expr) visit(e));
+            if (ctx.exps() != null) {
+                for (var e : ctx.exps().exp()) {
+                    args.add((Expr) visit(e));
+                }
             }
-            Expr index = (Expr) visit(ctx.exp());
-            return new ExprCall(fname, args, index);
+
+            // Verifica se é uma chamada com índice: ID '(' exps? ')' '[' exp ']'
+            if (ctx.exp() != null && ctx.getText().endsWith("]")) {
+                 Expr index = (Expr) visit(ctx.exp());
+                 return new ExprCall(fname, args, index);
+            }
         }
 
-        throw new RuntimeException("Expressão primária não reconhecida");
+        throw new RuntimeException("Expressão primária não reconhecida: " + ctx.getText());
     }
 
 
@@ -400,7 +404,8 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             if (lv.lvalue instanceof LValueVar var) {
                 return var.type;
             }
-            throw new RuntimeException("Tipo não reconhecido para LValue: " + lv.lvalue.getClass().getSimpleName());
+            // Não lança mais exceção para outros tipos de LValue
+            return null;
         }
 
         return new TypeBase("Unknown");
