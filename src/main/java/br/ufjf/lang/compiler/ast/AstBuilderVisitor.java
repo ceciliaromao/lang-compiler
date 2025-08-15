@@ -19,9 +19,54 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
     public Object visitProg(LangParser.ProgContext ctx) {
         List<Def> defs = new ArrayList<>();
         for (var defCtx : ctx.def()) {
-            defs.add((Def) visit(defCtx));
+            Object result = visit(defCtx);
+
+            // Verificação semântica: proíbe funções globais que não sejam 'main'.
+            if (result instanceof FunDef funDef) {
+                if (!funDef.name.equals("main")) {
+                    throw new RuntimeException("Erro Semântico: A função '" + funDef.name + "' não pode ser definida no escopo global. Apenas 'main' ou funções dentro de 'abstract data' são permitidas.");
+                }
+            }
+
+            if (result instanceof List) {
+                defs.addAll((List<Def>) result);
+            } else {
+                defs.add((Def) result);
+            }
         }
         return new Program(defs);
+    }
+
+    @Override
+    public Object visitData(LangParser.DataContext ctx) {
+        String name = ctx.TYID().getText();
+        boolean isAbstract = ctx.getChild(0).getText().equals("abstract");
+
+        List<FieldDecl> fields = new ArrayList<>();
+        List<FunDef> functions = new ArrayList<>();
+
+        for (var declCtx : ctx.decl()) {
+            fields.add((FieldDecl) visit(declCtx));
+        }
+
+        for (var funCtx : ctx.fun()) {
+            functions.add((FunDef) visit(funCtx));
+        }
+        
+        DataDef dataDef = new DataDef(name, isAbstract, fields);
+
+        // Eleva as funções para o escopo global
+        List<Def> allDefs = new ArrayList<>();
+        allDefs.add(dataDef);
+        allDefs.addAll(functions);
+        return allDefs;
+    }
+
+    @Override
+    public Object visitDecl(LangParser.DeclContext ctx) {
+        String name = ctx.ID().getText();
+        Type type = (Type) visit(ctx.type());
+        return new FieldDecl(name, type);
     }
 
     @Override
@@ -50,28 +95,18 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         return new FunDef(name, params, returnTypes, body);
     }
 
-    // ==================================================================
-    // MÉTODO ALTERADO PARA SE ADEQUAR À NOVA GRAMÁTICA
-    // ==================================================================
     @Override
     public Object visitType(LangParser.TypeContext ctx) {
-        // 1. Sempre começamos com o tipo base (btype).
         Type currentType = (Type) visit(ctx.btype());
 
-        // 2. A nova gramática é `btype ('[' ']')*`. O número de dimensões do array
-        // é determinado pela quantidade de pares de colchetes.
-        // Podemos calcular isso pela contagem de filhos no contexto do parser.
-        // (Total de filhos - 1 para o btype) / 2 (um para '[' e outro para ']').
         int numDimensions = (ctx.getChildCount() - 1) / 2;
 
-        // 3. Para cada dimensão, envolvemos o tipo atual em um TypeArray.
         for (int i = 0; i < numDimensions; i++) {
             currentType = new TypeArray(currentType);
         }
 
         return currentType;
     }
-    // ==================================================================
 
     @Override
     public Object visitBtype(LangParser.BtypeContext ctx) {
@@ -107,8 +142,9 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
                 return new CmdIf(cond, thenBranch, elseBranch);
             }
             case "iterate" -> {
-                String var = ctx.ID() != null ? ctx.ID().getText() : null;
-                Expr cond = (Expr) visit(ctx.exp(0));
+                Object[] itcondResult = (Object[]) visit(ctx.itcond());
+                String var = (String) itcondResult[0];
+                Expr cond = (Expr) itcondResult[1];
                 Cmd body = (Cmd) visit(ctx.cmd(0));
                 return new CmdIterate(var, cond, body);
             }
@@ -123,11 +159,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         if (ctx.lvalue() != null && ctx.getChild(1).getText().equals("=")) {
             LValue target = (LValue) visit(ctx.lvalue(0));
             Expr value = (Expr) visit(ctx.exp(0));
-
-            // inferência simples
-            Type valueType = inferExprType(value);
-            symbolTable.put(((LValueVar)target).name, valueType);
-
             return new CmdAssign(target, value);
         }
 
@@ -163,6 +194,19 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             cmds.add((Cmd) visit(c));
         }
         return new CmdBlock(cmds);
+    }
+
+    @Override
+    public Object visitItcond(LangParser.ItcondContext ctx) {
+        String var = null;
+        Expr expr;
+        if (ctx.ID() != null) {
+            var = ctx.ID().getText();
+            expr = (Expr) visit(ctx.exp());
+        } else {
+            expr = (Expr) visit(ctx.exp());
+        }
+        return new Object[]{var, expr};
     }
 
     @Override
@@ -259,16 +303,29 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         }
         if (ctx.CHAR() != null) {
             String raw = ctx.CHAR().getText();
-            char c = raw.charAt(1); // assumindo aspas simples válidas
+            String content = raw.substring(1, raw.length() - 1);
+            char c;
+            if (content.length() > 1 && content.charAt(0) == '\\') {
+                c = switch (content.charAt(1)) {
+                    case 'n' -> '\n';
+                    case 't' -> '\t';
+                    case 'r' -> '\r';
+                    case 'b' -> '\b';
+                    case '\\' -> '\\';
+                    case '\'' -> '\'';
+                    default -> content.charAt(1);
+                };
+            } else {
+                c = content.charAt(0);
+            }
             return new ExprChar(c);
         }
 
         String text = ctx.getText();
-        if (text.equals("true") || text.equals("false")) {
-            return new ExprBool(text.equals("true"));
-        }
-        if (text.equals("null")) {
-            return new ExprNull();
+        if (ctx.getChildCount() == 1) {
+            if (text.equals("true")) return new ExprBool(true);
+            if (text.equals("false")) return new ExprBool(false);
+            if (text.equals("null")) return new ExprNull();
         }
 
         if (ctx.lvalue() != null) {
@@ -285,17 +342,24 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             return new ExprNew(type, size);
         }
 
-        if (ctx.ID() != null && ctx.exps() != null) {
+        // Trata chamadas de função, com ou sem índice de retorno.
+        if (ctx.ID() != null && ctx.getChildCount() > 1 && ctx.getChild(1).getText().equals("(")) {
             String fname = ctx.ID().getText();
             List<Expr> args = new ArrayList<>();
-            for (var e : ctx.exps().exp()) {
-                args.add((Expr) visit(e));
+            if (ctx.exps() != null) {
+                for (var e : ctx.exps().exp()) {
+                    args.add((Expr) visit(e));
+                }
             }
-            Expr index = (Expr) visit(ctx.exp());
-            return new ExprCall(fname, args, index);
+
+            // Verifica se é uma chamada com índice: ID '(' exps? ')' '[' exp ']'
+            if (ctx.exp() != null && ctx.getText().endsWith("]")) {
+                 Expr index = (Expr) visit(ctx.exp());
+                 return new ExprCall(fname, args, index);
+            }
         }
 
-        throw new RuntimeException("Expressão primária não reconhecida");
+        throw new RuntimeException("Expressão primária não reconhecida: " + ctx.getText());
     }
 
 
@@ -304,8 +368,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         // caso seja uma variável simples (ID)
         if (ctx.ID() != null && ctx.lvalue() == null) {
             String varName = ctx.ID().getText();
-            // Permite que a variável não exista na tabela de símbolos neste ponto,
-            // pois pode ser uma declaração em uma atribuição.
             Type type = symbolTable.get(varName);
             return new LValueVar(varName, type);
         }
@@ -325,11 +387,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
 
     private Type resolveType(String variableName) {
         if (!symbolTable.containsKey(variableName)) {
-            // Lançar exceção apenas se a variável realmente não foi declarada.
-            // A lógica de atribuição agora lida com a inserção na tabela.
-            // Para outros usos (leitura), a verificação ainda é importante.
-            // No momento, vamos relaxar essa restrição para permitir a declaração por atribuição.
-            // Se o tipo não for inferido depois, o interpretador pode falhar, o que é aceitável por agora.
             return null;
         }
         return symbolTable.get(variableName);
@@ -347,7 +404,8 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             if (lv.lvalue instanceof LValueVar var) {
                 return var.type;
             }
-            throw new RuntimeException("Tipo não reconhecido para LValue: " + lv.lvalue.getClass().getSimpleName());
+            // Não lança mais exceção para outros tipos de LValue
+            return null;
         }
 
         return new TypeBase("Unknown");

@@ -13,42 +13,47 @@ abstract class LValue {
         return this.getClass().getSimpleName();
     }
 }
+
 class LValueInt extends LValue {
     public int value;
     public LValueInt(int v) { this.value = v; }
     @Override public String toString() { return String.valueOf(value); }
 }
+
 class LValueFloat extends LValue {
     public double value;
     public LValueFloat(double v) { this.value = v; }
     @Override public String toString() { return String.valueOf(value); }
 }
+
 class LValueChar extends LValue {
     public char value;
     public LValueChar(char v) { this.value = v; }
     @Override public String toString() { return String.valueOf(value); }
 }
+
 class LValueBool extends LValue {
     public boolean value;
     public LValueBool(boolean v) { this.value = v; }
     @Override public String toString() { return String.valueOf(value); }
 }
+
 class LValueNull extends LValue {
     @Override public String toString() { return "null"; }
 }
+
 class LValueArray extends LValue {
-    // Usa uma lista para armazenar os valores do array
     private final List<LValue> values;
 
     public LValueArray(int size) {
-        // Inicializa o array com um tamanho fixo, preenchido com 'null'
         this.values = new ArrayList<>(Collections.nCopies(size, new LValueNull()));
     }
 
     // Métodos para acessar e modificar o array (serão usados futuramente)
     public LValue get(int index) {
         if (index < 0 || index >= values.size()) {
-            throw new RuntimeException("Acesso a array fora dos limites: índice " + index);
+            // Semântica da linguagem: acesso fora dos limites retorna null.
+            return new LValueNull();
         }
         return values.get(index);
     }
@@ -64,14 +69,16 @@ class LValueArray extends LValue {
     public String toString() {
         return values.toString();
     }
+
+    public int size() {
+        return values.size();
+    }
 }
 
 // Representa um valor de registro (struct/objeto) em tempo de execução
 class LValueRecord extends LValue {
-    // Usa um mapa para armazenar os campos (nome do campo -> valor)
     private final Map<String, LValue> fields = new HashMap<>();
 
-    // Métodos para acessar e modificar os campos (serão usados futuramente)
     public LValue get(String fieldName) {
         if (!fields.containsKey(fieldName)) {
             throw new RuntimeException("Acesso a campo inexistente: '" + fieldName + "'");
@@ -92,20 +99,23 @@ class LValueRecord extends LValue {
 public class Interpreter {
 
     private final Map<String, FunDef> functionTable = new HashMap<>();
+    private final Map<String, DataDef> dataTable = new HashMap<>();
     private final Scanner scanner = new Scanner(System.in);
 
     public void run(Program program) {
-        // Carrega as definições de função em uma tabela para acesso rápido.
+        // Carrega as definições de função e de dados em tabelas para acesso rápido.
         for (Def def : program.definitions) {
             if (def instanceof FunDef fun) {
                 functionTable.put(fun.name, fun);
+            } else if (def instanceof DataDef data) {
+                dataTable.put(data.name, data);
             }
         }
 
-        System.out.println("Funções disponíveis:");
-        for (String funName : functionTable.keySet()) {
-            System.out.println(" - " + funName);
-        }
+        // System.out.println("Funções disponíveis:");
+        // for (String funName : functionTable.keySet()) {
+        //     System.out.println(" - " + funName);
+        // }
 
         FunDef mainFun = functionTable.get("main");
         if (mainFun == null) {
@@ -121,7 +131,19 @@ public class Interpreter {
                     case "Float" -> mainArgs.add(new LValueFloat(0.0));
                     case "Char" -> mainArgs.add(new LValueChar('\0'));
                     case "Bool" -> mainArgs.add(new LValueBool(false));
-                    default -> mainArgs.add(new LValueNull()); // Para records ou outros tipos
+                    default -> {
+                        // Assume que é um tipo de registro.
+                        DataDef dataDef = dataTable.get(base.name);
+                        if (dataDef != null) {
+                            LValueRecord record = new LValueRecord();
+                            for (FieldDecl field : dataDef.fields) {
+                                record.set(field.name, new LValueNull());
+                            }
+                            mainArgs.add(record);
+                        } else {
+                            mainArgs.add(new LValueNull());
+                        }
+                    }
                 }
             } else if (param.type() instanceof TypeArray) {
                 mainArgs.add(new LValueArray(0)); // Array de tamanho 0 como padrão
@@ -168,29 +190,26 @@ public class Interpreter {
     private List<LValue> executeCmd(Cmd cmd, Stack<Map<String, LValue>> scopes) {
 
         if (cmd instanceof CmdBlock block) {
-            // Entra em um novo escopo de bloco.
-            scopes.push(new HashMap<>());
+            // Blocos não criam novos escopos, eles executam no escopo atual.
+            // Apenas funções criam novos escopos.
             for (Cmd c : block.commands) {
                 List<LValue> ret = executeCmd(c, scopes);
                 // Se um comando de retorno for encontrado, propaga o valor imediatamente.
                 if (ret != null) {
-                    scopes.pop(); // Garante que o escopo seja removido antes de retornar.
                     return ret;
                 }
             }
-            // Sai do escopo do bloco.
-            scopes.pop();
             return null;
         }
 
         if (cmd instanceof CmdPrint p) {
             LValue v = evalExpr(p.expr, scopes);
-            if (v instanceof LValueInt i) System.out.println(i.value);
-            else if (v instanceof LValueBool b) System.out.println(b.value);
-            else if (v instanceof LValueFloat f) System.out.println(f.value);
-            else if (v instanceof LValueChar c) System.out.println(c.value);
-            else if (v instanceof LValueNull) System.out.println("null");
-            else System.out.println(v);
+            if (v instanceof LValueInt i) System.out.print(i.value);
+            else if (v instanceof LValueBool b) System.out.print(b.value);
+            else if (v instanceof LValueFloat f) System.out.print(f.value);
+            else if (v instanceof LValueChar c) System.out.print(c.value);
+            else if (v instanceof LValueNull) System.out.print("null");
+            else System.out.print(v);
             return null;
         }
 
@@ -220,29 +239,34 @@ public class Interpreter {
 
         if (cmd instanceof CmdIterate loop) {
             LValue rangeVal = evalExpr(loop.range, scopes);
+            int count;
 
-            if (!(rangeVal instanceof LValueInt num)) {
-                throw new RuntimeException("O comando 'iterate' requer um valor inteiro para definir o número de repetições.");
+            if (rangeVal instanceof LValueInt num) {
+                count = num.value;
+            } else if (rangeVal instanceof LValueArray arr) {
+                count = arr.size();
+            } else {
+                throw new RuntimeException("O comando 'iterate' requer um valor inteiro ou um array.");
             }
-
-            int count = num.value;
             
             if (count > 0) {
-                scopes.push(new HashMap<>());
+                // Modifica ou declara a variável de loop no escopo ATUAL.
+                Map<String, LValue> currentScope = scopes.peek();
 
                 for (int i = 0; i < count; i++) {
                     if (loop.varName != null) {
-                        scopes.peek().put(loop.varName, new LValueInt(i));
+                        if (rangeVal instanceof LValueArray arr) {
+                            currentScope.put(loop.varName, arr.get(i));
+                        } else {
+                            currentScope.put(loop.varName, new LValueInt(i));
+                        }
                     }
 
                     List<LValue> ret = executeCmd(loop.body, scopes);
                     if (ret != null) {
-                        scopes.pop(); // Garante a saída do escopo antes de retornar.
-                        return ret;
+                        return ret; // Retorna diretamente, sem mexer no escopo
                     }
                 }
-
-                scopes.pop();
             }
             return null;
         }
@@ -252,8 +276,6 @@ public class Interpreter {
             String line = scanner.nextLine();
         
             if (read.target instanceof LValueVar var) {
-                // A lógica de inferência foi mantida como no original, mas agora usa setLValue
-                // para respeitar o escopo. A abordagem correta seria usar o tipo pré-definido.
                 if (var.type == null) {
                     LValue inferredVal = inferFromInput(line);
                     var.type = getTypeOf(inferredVal);
@@ -310,6 +332,7 @@ public class Interpreter {
         if (expr instanceof ExprFloat f) return new LValueFloat(f.value);
         if (expr instanceof ExprChar c) return new LValueChar(c.value);
         if (expr instanceof ExprNull) return new LValueNull();
+        if (expr instanceof ExprParen p) return evalExpr(p.inner, scopes);
 
         if (expr instanceof ExprUnary u) {
             LValue val = evalExpr(u.expr, scopes);
@@ -335,6 +358,17 @@ public class Interpreter {
 
             // record
             else {
+                if (n.type instanceof TypeBase base) {
+                    DataDef dataDef = dataTable.get(base.name);
+                    if (dataDef != null) {
+                        LValueRecord record = new LValueRecord();
+                        for (FieldDecl field : dataDef.fields) {
+                            record.set(field.name, new LValueNull());
+                        }
+                        return record;
+                    }
+                }
+                // Se não for um tipo base conhecido ou não estiver na dataTable, retorna um registro novo e vazio
                 return new LValueRecord();
             }
         }
@@ -353,7 +387,7 @@ public class Interpreter {
             FunDef callee = functionTable.get(call.functionName);
             if (callee == null) throw new RuntimeException("Função não encontrada: " + call.functionName);
 
-            System.out.println("Chamando função: " + call.functionName);
+            // System.out.println("Chamando função: " + call.functionName);
             
             List<LValue> args = new ArrayList<>();
             for (Expr arg : call.arguments) {
@@ -406,6 +440,24 @@ public class Interpreter {
     private LValue evalBinary(String op, LValue left, LValue right) {
         switch (op) {
             case "+", "-", "*", "/", "%":
+                // Coerção de null para 0 em contexto aritmético.
+                if (left instanceof LValueNull) left = new LValueInt(0);
+                if (right instanceof LValueNull) right = new LValueInt(0);
+
+                // Promoção de tipo: se um for Float, converte o outro para Float.
+                if (left instanceof LValueFloat || right instanceof LValueFloat) {
+                    double l = (left instanceof LValueFloat f) ? f.value : ((LValueInt) left).value;
+                    double r = (right instanceof LValueFloat f) ? f.value : ((LValueInt) right).value;
+                    return new LValueFloat(switch (op) {
+                        case "*" -> l * r;
+                        case "/" -> l / r;
+                        case "%" -> l % r;
+                        case "+" -> l + r;
+                        case "-" -> l - r;
+                        default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
+                    });
+                }
+                
                 if (left instanceof LValueInt li && right instanceof LValueInt ri) {
                     return new LValueInt(switch (op) {
                         case "*" -> li.value * ri.value;
@@ -415,19 +467,20 @@ public class Interpreter {
                         case "-" -> li.value - ri.value;
                         default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
                     });
-                } else if (left instanceof LValueFloat lf && right instanceof LValueFloat rf) {
-                    return new LValueFloat(switch (op) {
-                        case "*" -> lf.value * rf.value;
-                        case "/" -> lf.value / rf.value;
-                        case "%" -> lf.value % rf.value;
-                        case "+" -> lf.value + rf.value;
-                        case "-" -> lf.value - rf.value;
-                        default -> throw new UnsupportedOperationException("Operador não suportado: " + op);
-                    });
                 }
                 throw new RuntimeException("Tipos incompatíveis para operação: " + left + " " + op + " " + right);
 
             case "==", "!=", "<": {
+                // Comparações com null
+                if (left instanceof LValueNull || right instanceof LValueNull) {
+                    if (op.equals("<")) {
+                        return new LValueBool(false); // null nunca é menor que algo.
+                    }
+                    boolean result = left instanceof LValueNull && right instanceof LValueNull;
+                     if (op.equals("!=")) return new LValueBool(!result);
+                     return new LValueBool(result);
+                }
+
                 int cmp;
                 
                 if (left instanceof LValueInt li && right instanceof LValueInt ri) {
@@ -450,10 +503,11 @@ public class Interpreter {
                     default -> false; 
                 });
             }
-            case "&&":
-                if (left instanceof LValueBool lb && right instanceof LValueBool rb) {
-                    return new LValueBool(lb.value && rb.value);
-                }
+            case "&&": {
+                boolean l = asBool(left);
+                boolean r = asBool(right);
+                return new LValueBool(l && r);
+            }
 
             default:
                 throw new UnsupportedOperationException("Operador binário não implementado ou tipos incompatíveis: " + op);
@@ -504,14 +558,8 @@ public class Interpreter {
 
     private void setLValue(br.ufjf.lang.compiler.ast.LValue lvalue, LValue val, Stack<Map<String, LValue>> scopes) {
         if (lvalue instanceof LValueVar v) {
-            // Procura a variável para atualizá-la, começando do escopo mais interno.
-            for (int i = scopes.size() - 1; i >= 0; i--) {
-                if (scopes.get(i).containsKey(v.name)) {
-                    scopes.get(i).put(v.name, val);
-                    return;
-                }
-            }
-            // Se não encontrou em nenhum escopo, declara a variável no escopo atual (topo da pilha).
+            // A atribuição sempre acontece no escopo mais interno (o atual).
+            // Se a variável já existe em um escopo externo, esta nova a "sombra".
             scopes.peek().put(v.name, val);
             return;
         }
@@ -575,6 +623,10 @@ public class Interpreter {
 
     private boolean asBool(LValue v) {
         if (v instanceof LValueBool b) return b.value;
-        throw new RuntimeException("Esperado um valor Booleano, mas o tipo obtido foi: " + v.getClass().getSimpleName());
+        if (v instanceof LValueInt i) return i.value != 0;
+        if (v instanceof LValueFloat f) return f.value != 0.0;
+        if (v instanceof LValueChar c) return c.value != '\0';
+        if (v instanceof LValueNull) return false;
+        return true;
     }
 }
