@@ -90,28 +90,18 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         return new FunDef(name, params, returnTypes, body);
     }
 
-    // ==================================================================
-    // MÉTODO ALTERADO PARA SE ADEQUAR À NOVA GRAMÁTICA
-    // ==================================================================
     @Override
     public Object visitType(LangParser.TypeContext ctx) {
-        // 1. Sempre começamos com o tipo base (btype).
         Type currentType = (Type) visit(ctx.btype());
 
-        // 2. A nova gramática é `btype ('[' ']')*`. O número de dimensões do array
-        // é determinado pela quantidade de pares de colchetes.
-        // Podemos calcular isso pela contagem de filhos no contexto do parser.
-        // (Total de filhos - 1 para o btype) / 2 (um para '[' e outro para ']').
         int numDimensions = (ctx.getChildCount() - 1) / 2;
 
-        // 3. Para cada dimensão, envolvemos o tipo atual em um TypeArray.
         for (int i = 0; i < numDimensions; i++) {
             currentType = new TypeArray(currentType);
         }
 
         return currentType;
     }
-    // ==================================================================
 
     @Override
     public Object visitBtype(LangParser.BtypeContext ctx) {
@@ -147,7 +137,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
                 return new CmdIf(cond, thenBranch, elseBranch);
             }
             case "iterate" -> {
-                // A lógica para 'iterate' precisa lidar com a estrutura 'itcond'
                 Object[] itcondResult = (Object[]) visit(ctx.itcond());
                 String var = (String) itcondResult[0];
                 Expr cond = (Expr) itcondResult[1];
@@ -214,11 +203,9 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         String var = null;
         Expr expr;
         if (ctx.ID() != null) {
-            // Caso: 'ID : exp'
             var = ctx.ID().getText();
             expr = (Expr) visit(ctx.exp());
         } else {
-            // Caso: 'exp'
             expr = (Expr) visit(ctx.exp());
         }
         return new Object[]{var, expr};
@@ -328,7 +315,7 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
                     case 'b' -> '\b';
                     case '\\' -> '\\';
                     case '\'' -> '\'';
-                    default -> content.charAt(1); // Fallback, a gramática deve evitar isso
+                    default -> content.charAt(1);
                 };
             } else {
                 c = content.charAt(0);
@@ -377,8 +364,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         // caso seja uma variável simples (ID)
         if (ctx.ID() != null && ctx.lvalue() == null) {
             String varName = ctx.ID().getText();
-            // Permite que a variável não exista na tabela de símbolos neste ponto,
-            // pois pode ser uma declaração em uma atribuição.
             Type type = symbolTable.get(varName);
             return new LValueVar(varName, type);
         }
@@ -398,11 +383,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
 
     private Type resolveType(String variableName) {
         if (!symbolTable.containsKey(variableName)) {
-            // Lançar exceção apenas se a variável realmente não foi declarada.
-            // A lógica de atribuição agora lida com a inserção na tabela.
-            // Para outros usos (leitura), a verificação ainda é importante.
-            // No momento, vamos relaxar essa restrição para permitir a declaração por atribuição.
-            // Se o tipo não for inferido depois, o interpretador pode falhar, o que é aceitável por agora.
             return null;
         }
         return symbolTable.get(variableName);

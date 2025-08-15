@@ -13,39 +13,42 @@ abstract class LValue {
         return this.getClass().getSimpleName();
     }
 }
+
 class LValueInt extends LValue {
     public int value;
     public LValueInt(int v) { this.value = v; }
     @Override public String toString() { return String.valueOf(value); }
 }
+
 class LValueFloat extends LValue {
     public double value;
     public LValueFloat(double v) { this.value = v; }
     @Override public String toString() { return String.valueOf(value); }
 }
+
 class LValueChar extends LValue {
     public char value;
     public LValueChar(char v) { this.value = v; }
     @Override public String toString() { return String.valueOf(value); }
 }
+
 class LValueBool extends LValue {
     public boolean value;
     public LValueBool(boolean v) { this.value = v; }
     @Override public String toString() { return String.valueOf(value); }
 }
+
 class LValueNull extends LValue {
     @Override public String toString() { return "null"; }
 }
+
 class LValueArray extends LValue {
-    // Usa uma lista para armazenar os valores do array
     private final List<LValue> values;
 
     public LValueArray(int size) {
-        // Inicializa o array com um tamanho fixo, preenchido com 'null'
         this.values = new ArrayList<>(Collections.nCopies(size, new LValueNull()));
     }
 
-    // Métodos para acessar e modificar o array (serão usados futuramente)
     public LValue get(int index) {
         if (index < 0 || index >= values.size()) {
             throw new RuntimeException("Acesso a array fora dos limites: índice " + index);
@@ -72,10 +75,8 @@ class LValueArray extends LValue {
 
 // Representa um valor de registro (struct/objeto) em tempo de execução
 class LValueRecord extends LValue {
-    // Usa um mapa para armazenar os campos (nome do campo -> valor)
     private final Map<String, LValue> fields = new HashMap<>();
 
-    // Métodos para acessar e modificar os campos (serão usados futuramente)
     public LValue get(String fieldName) {
         if (!fields.containsKey(fieldName)) {
             throw new RuntimeException("Acesso a campo inexistente: '" + fieldName + "'");
@@ -138,7 +139,7 @@ public class Interpreter {
                             }
                             mainArgs.add(record);
                         } else {
-                            mainArgs.add(new LValueNull()); // Fallback se o tipo não for encontrado
+                            mainArgs.add(new LValueNull());
                         }
                     }
                 }
@@ -274,8 +275,6 @@ public class Interpreter {
             String line = scanner.nextLine();
         
             if (read.target instanceof LValueVar var) {
-                // A lógica de inferência foi mantida como no original, mas agora usa setLValue
-                // para respeitar o escopo. A abordagem correta seria usar o tipo pré-definido.
                 if (var.type == null) {
                     LValue inferredVal = inferFromInput(line);
                     var.type = getTypeOf(inferredVal);
@@ -619,8 +618,6 @@ public class Interpreter {
         if (v instanceof LValueFloat f) return f.value != 0.0;
         if (v instanceof LValueChar c) return c.value != '\0';
         if (v instanceof LValueNull) return false;
-        // Para LValueArray e LValueRecord, poderíamos considerar o tamanho/nº de campos,
-        // mas por enquanto vamos tratá-los como 'true' se não forem nulos.
         return true;
     }
 }
