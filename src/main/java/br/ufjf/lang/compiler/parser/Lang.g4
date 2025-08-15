@@ -90,7 +90,7 @@ ID          : [a-z][a-zA-Z0-9_]*;
 INT         : [0-9]+;
 FLOAT       : [0-9]* '.' [0-9]+;
 CHAR        : '\'' ( ~('\'' | '\\') | ESC ) '\'';
-fragment ESC: '\\' [ntrb\\'] | '\\' [01][012][0-9];
+fragment ESC: '\\' [ntrb\\'] | '\\' [0-9][0-9][0-9];
 
 WS          : [ \t\r\n]+ -> skip;
 COMMENT     : '--' ~[\r\n]* -> skip;

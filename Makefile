@@ -15,7 +15,7 @@ run-i:
 # Executar a verificação de tipos:
 run-t:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -t src/main/resources/types/simple/teste0.lan
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -t src/main/resources/types/function/teste1.lan
 
 clean:
 	mvn clean

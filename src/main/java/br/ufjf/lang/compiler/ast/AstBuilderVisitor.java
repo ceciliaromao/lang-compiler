@@ -21,13 +21,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         for (var defCtx : ctx.def()) {
             Object result = visit(defCtx);
 
-            // Verificação semântica: proíbe funções globais que não sejam 'main'.
-            if (result instanceof FunDef funDef) {
-                if (!funDef.name.equals("main")) {
-                    throw new RuntimeException("Erro Semântico: A função '" + funDef.name + "' não pode ser definida no escopo global. Apenas 'main' ou funções dentro de 'abstract data' são permitidas.");
-                }
-            }
-
             if (result instanceof List) {
                 defs.addAll((List<Def>) result);
             } else {

@@ -110,7 +110,7 @@ public class Main {
 
         } catch (RuntimeException e) {
             System.out.println("reject");
-            // System.err.println(e.getMessage());
+            System.err.println(e.getMessage());
             System.exit(1);
         }
     }

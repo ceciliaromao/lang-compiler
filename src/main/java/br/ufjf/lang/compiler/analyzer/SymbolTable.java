@@ -18,10 +18,10 @@ class SymbolTable {
         scopes.pop();
     }
 
-    // Adiciona um símbolo (variável) ao escopo atual
     public void add(String name, Type type) {
+        // verifica duplicatas no escopo atual
         if (scopes.peek().containsKey(name)) {
-            throw new SemanticError("Erro: Variável '" + name + "' já foi declarada neste escopo.");
+            throw new SemanticError("Erro: A variável '" + name + "' já foi declarada neste escopo.");
         }
         scopes.peek().put(name, type);
     }
@@ -34,5 +34,10 @@ class SymbolTable {
             }
         }
         return null; // Não encontrado
+    }
+
+    @Override
+    public String toString() {
+        return "SymbolTable scopes: " + scopes.toString();
     }
 }
