@@ -15,7 +15,7 @@ run-i:
 # Executar a verificação de tipos:
 run-t:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -t src/main/resources/types/errado/errado2.lan
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -t src/main/resources/types/errado/errado7.lan
 
 clean:
 	mvn clean
