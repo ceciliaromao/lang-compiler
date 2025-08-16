@@ -254,7 +254,7 @@ public class JasminGenerator {
                 handleComparison(expr.op, typePrefix);
                 break;
             case "&&":
-                handleLogicalAnd();
+                handleLogicalAnd(localVars); // Passando as variáveis locais
                 break;
         }
     }
@@ -262,49 +262,49 @@ public class JasminGenerator {
     private void handleComparison(String op, char typePrefix) {
         String trueLabel = newLabel();
         String endLabel = newLabel();
-        String instruction = "";
+        String instruction;
 
-        switch (op) {
-            case "==": instruction = "if_icmp" + (typePrefix == 'f' ? "" : "eq"); break;
-            case "!=": instruction = "if_icmp" + (typePrefix == 'f' ? "" : "ne"); break;
-            case "<":  instruction = "if_icmp" + (typePrefix == 'f' ? "" : "lt"); break;
-        }
-        if (typePrefix == 'f') { // Comparações de float são mais complexas
-            code.append("    fcmpl\n");
-             switch (op) {
-                case "==": instruction = "ifeq"; break;
-                case "!=": instruction = "ifne"; break;
-                case "<":  instruction = "iflt"; break;
+        if (typePrefix == 'f') {
+            code.append("    fcmpl\n"); // Para floats, primeiro compara e coloca -1, 0, ou 1 na pilha
+            switch (op) {
+                case "==": instruction = "ifeq"; break; // salta se for 0 (igual)
+                case "!=": instruction = "ifne"; break; // salta se não for 0 (diferente)
+                case "<":  instruction = "iflt"; break; // salta se for -1 (menor que)
+                default: return;
+            }
+        } else { // Para inteiros
+            switch (op) {
+                case "==": instruction = "if_icmpeq"; break;
+                case "!=": instruction = "if_icmpne"; break;
+                case "<":  instruction = "if_icmplt"; break;
+                default: return;
             }
         }
         
         code.append("    ").append(instruction).append(" ").append(trueLabel).append("\n");
-        code.append("    iconst_0\n");
+        code.append("    iconst_0\n"); // false
         code.append("    goto ").append(endLabel).append("\n");
         code.append(trueLabel).append(":\n");
-        code.append("    iconst_1\n");
+        code.append("    iconst_1\n"); // true
         code.append(endLabel).append(":\n");
     }
 
-    private void handleLogicalAnd() {
+    private void handleLogicalAnd(Map<String, Integer> localVars) {
         String falseLabel = newLabel();
         String endLabel = newLabel();
 
-        // Avalia o lado esquerdo
-        // Se for 0 (false), o resultado é 0. Pula para o fim.
+        // A expressão da esquerda já foi avaliada e está na pilha.
+        // Se for 0 (false), o resultado já é false. Pula para o fim.
         code.append("    ifeq ").append(falseLabel).append("\n");
 
-        // Avalia o lado direito
-        // Se o direito for 0, o resultado é 0.
-        code.append("    ifeq ").append(falseLabel).append("\n");
-
-        // Se ambos não forem 0, o resultado é 1.
-        code.append("    iconst_1\n");
+        // Se a esquerda era true, a expressão da direita (que também foi avaliada) está na pilha.
+        // O resultado da expressão '&&' é simplesmente o resultado da expressão da direita.
         code.append("    goto ").append(endLabel).append("\n");
 
         // Rótulo para o caso de resultado falso
         code.append(falseLabel).append(":\n");
-        code.append("    iconst_0\n");
+        code.append("    pop\n");      // Remove o resultado da direita da pilha
+        code.append("    iconst_0\n"); // Coloca false na pilha
 
         // Fim da expressão
         code.append(endLabel).append(":\n");
