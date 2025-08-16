@@ -1,8 +1,7 @@
 package br.ufjf.lang.compiler.ast;
 
-public class ExprBinary implements Expr {
-    public Type type;
-    
+public class ExprBinary extends ExprBase {
+
     public final String op; // "+", "-", "*", etc.
     public final Expr left;
     public final Expr right;

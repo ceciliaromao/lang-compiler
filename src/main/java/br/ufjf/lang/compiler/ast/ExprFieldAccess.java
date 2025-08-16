@@ -1,7 +1,7 @@
 package br.ufjf.lang.compiler.ast;
 
-public class ExprFieldAccess implements Expr {
-    public Type type;
+public class ExprFieldAccess extends ExprBase {
+
     public final Expr target;
     public final String field;
 

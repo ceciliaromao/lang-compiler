@@ -2,8 +2,8 @@ package br.ufjf.lang.compiler.ast;
 
 import java.util.List;
 
-public class ExprCall implements Expr {
-    public Type type;
+public class ExprCall extends ExprBase {
+
     public final String functionName;
     public final List<Expr> arguments;
     public final Expr index; // para acesso [n] / pode ser null se não houver acesso [n]

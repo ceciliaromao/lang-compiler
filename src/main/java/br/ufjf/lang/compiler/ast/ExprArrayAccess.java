@@ -1,7 +1,6 @@
 package br.ufjf.lang.compiler.ast;
 
-public class ExprArrayAccess implements Expr {
-    public Type type;
+public class ExprArrayAccess extends ExprBase {
     public final Expr array;
     public final Expr index;
 

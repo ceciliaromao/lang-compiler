@@ -13,6 +13,10 @@ public class SemanticAnalyzer {
     private Map<String, DataDef> recordTable;
     private SymbolTable table;
 
+    public Map<String, DataDef> getRecordTable() {
+        return this.recordTable;
+    }
+
     public void analyze(Program program) {
         System.out.println("Análise semântica iniciada...");
 
@@ -337,59 +341,66 @@ public class SemanticAnalyzer {
         }
 
         if (expr instanceof ExprBinary b) {
+
             Type leftType = checkExpr(b.left, table);
             Type rightType = checkExpr(b.right, table);
             Type resultType;
+
             switch (b.op) {
                 case "+", "-", "*", "/":
-                    if (leftType.isA("Int") && rightType.isA("Int")) { resultType = new TypeBase("Int"); }
-                    else if (leftType.isA("Float") && rightType.isA("Float")) { resultType = new TypeBase("Float"); }
-                    else { throw new SemanticError("Operador aritmético '" + b.op + "' não pode ser aplicado aos tipos " + leftType + " e " + rightType); }
+                    if (leftType.isA("Int") && rightType.isA("Int")) {
+                        resultType = new TypeBase("Int");
+                    } else if (leftType.isA("Float") && rightType.isA("Float")) {
+                        resultType = new TypeBase("Float");
+                    } else {
+                        throw new SemanticError("Operador aritmético '" + b.op + "' não pode ser aplicado aos tipos " + leftType + " e " + rightType);
+                    }
                     break;
+
                 case "%":
-                     if (leftType.isA("Int") && rightType.isA("Int")) { resultType = new TypeBase("Int"); }
-                     else { throw new SemanticError("Operador '%' só pode ser aplicado a tipos Int."); }
-                     break;
+                    if (leftType.isA("Int") && rightType.isA("Int")) {
+                        resultType = new TypeBase("Int");
+                    } else {
+                        throw new SemanticError("Operador '%' só pode ser aplicado a operandos do tipo Int.");
+                    }
+                    break;
+
                 case "==", "!=": {
-                    // permite comparação entre tipos primitivos se forem iguais.
                     boolean primitiveMatch = leftType.equals(rightType) && 
                                             (leftType.isA("Int") || leftType.isA("Float") || leftType.isA("Char") || leftType.isA("Bool"));
-
-                    // permite a comparação de um "tipo de referência" com 'null'.
-                    boolean leftIsRef = (leftType instanceof TypeArray) || 
-                                        (leftType instanceof TypeBase tb && recordTable.containsKey(tb.name));
-                                        
-                    boolean rightIsRef = (rightType instanceof TypeArray) || 
-                                        (rightType instanceof TypeBase tb && recordTable.containsKey(tb.name));
                     
-                    // a comparação é válida se um lado for referência e o outro for null.
-                    boolean refNullMatch = (leftIsRef && rightType.isA("Null")) || 
-                                        (leftType.isA("Null") && rightIsRef);
+                    boolean leftIsRef = (leftType instanceof TypeArray) || (leftType instanceof TypeBase tb && recordTable.containsKey(tb.name));
+                    boolean rightIsRef = (rightType instanceof TypeArray) || (rightType instanceof TypeBase tb && recordTable.containsKey(tb.name));
+                    boolean refNullMatch = (leftIsRef && rightType.isA("Null")) || (leftType.isA("Null") && rightIsRef);
 
                     if (primitiveMatch || refNullMatch) {
                         resultType = new TypeBase("Bool");
                     } else {
                         throw new SemanticError("Operador de igualdade '" + b.op + "' não pode ser aplicado aos tipos " + leftType + " e " + rightType);
                     }
-                    
-                    b.type = resultType;
-                    return b.type;
+                    break;
                 }
-                case "<": {
+
+                case "<":
                     if (leftType.equals(rightType) && (leftType.isA("Int") || leftType.isA("Float") || leftType.isA("Char"))) {
                         resultType = new TypeBase("Bool");
                     } else { 
                         throw new SemanticError("Operador relacional '<' não pode ser aplicado aos tipos " + leftType + " e " + rightType); 
                     }
                     break;
-                }
+                    
                 case "&&":
-                    if (leftType.isA("Bool") && rightType.isA("Bool")) { resultType = new TypeBase("Bool"); }
-                    else { throw new SemanticError("Operador lógico '&&' requer operandos do tipo Bool."); }
+                    if (leftType.isA("Bool") && rightType.isA("Bool")) {
+                        resultType = new TypeBase("Bool");
+                    } else {
+                        throw new SemanticError("Operador lógico '&&' requer operandos do tipo Bool.");
+                    }
                     break;
+
                 default:
-                     throw new SemanticError("Operador binário desconhecido: " + b.op);
+                    throw new SemanticError("Operador binário desconhecido: " + b.op);
             }
+
             b.type = resultType;
             return b.type;
         }
@@ -440,11 +451,7 @@ public class SemanticAnalyzer {
                 throw new SemanticError("Índice de retorno " + returnIndex + " está fora dos limites para a função '" + call.functionName + "', que retorna " + fun.returnTypes.size() + " valores.");
             }
             
-            // Se o índice não for constante, só podemos pegar o tipo de forma genérica.
-            // Para lang, como todos os retornos são definidos, podemos pegar pelo índice se for constante.
-            // Se não for constante, a verificação em tempo de execução falharia. Para a análise estática,
-            // temos que assumir que o tipo é o declarado.
-            Type returnType = fun.returnTypes.get(returnIndex >= 0 ? returnIndex : 0); // Simplificação: assume 0 se não for constante
+            Type returnType = fun.returnTypes.get(returnIndex >= 0 ? returnIndex : 0);
             
             call.type = returnType;
             return call.type;

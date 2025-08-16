@@ -1,6 +1,5 @@
 package br.ufjf.lang.compiler.ast;
 
-public class ExprNull implements Expr {
-    public Type type;
+public class ExprNull extends ExprBase {
     public ExprNull() {}
 }

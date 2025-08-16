@@ -13,8 +13,6 @@ import java.util.Map;
 
 public class AstBuilderVisitor extends LangBaseVisitor<Object> {
 
-    private final Map<String, Type> symbolTable = new HashMap<>();
-
     @Override
     public Object visitProg(LangParser.ProgContext ctx) {
         List<Def> defs = new ArrayList<>();
@@ -72,7 +70,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
                 String paramName = ctx.params().ID(i).getText();
                 Type paramType = (Type) visit(ctx.params().type(i));
                 params.add(new FunDef.Param(paramName, paramType));
-                symbolTable.put(paramName, paramType);
             }
         }
 
@@ -143,7 +140,6 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             }
             case "read" -> {
                 String varName = ctx.lvalue(0).ID().getText();
-                symbolTable.putIfAbsent(varName, null); // se a variável ainda não existe, adiciona à tabela com tipo null
                 return new CmdRead(new LValueVar(varName, null));
             }
         }
@@ -365,8 +361,7 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
         // caso seja uma variável simples (ID)
         if (ctx.ID() != null && ctx.lvalue() == null) {
             String varName = ctx.ID().getText();
-            Type type = symbolTable.get(varName);
-            return new LValueVar(varName, type);
+            return new LValueVar(varName, null);
         }
 
         // caso seja um acesso a array
@@ -381,31 +376,4 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
 
         throw new RuntimeException("Lvalue não reconhecido");
     }
-
-    private Type resolveType(String variableName) {
-        if (!symbolTable.containsKey(variableName)) {
-            return null;
-        }
-        return symbolTable.get(variableName);
-    }
-
-
-    private Type inferExprType(Expr expr) {
-        if (expr instanceof ExprInt) return new TypeBase("Int");
-        if (expr instanceof ExprBool) return new TypeBase("Bool");
-        if (expr instanceof ExprFloat) return new TypeBase("Float");
-        if (expr instanceof ExprChar) return new TypeBase("Char");
-        if (expr instanceof ExprNull) return new TypeBase("Null");
-
-        if (expr instanceof ExprLValue lv) {
-            if (lv.lvalue instanceof LValueVar var) {
-                return var.type;
-            }
-            // Não lança mais exceção para outros tipos de LValue
-            return null;
-        }
-
-        return new TypeBase("Unknown");
-    }
-
 }

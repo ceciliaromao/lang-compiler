@@ -1,7 +1,6 @@
 package br.ufjf.lang.compiler.ast;
 
-public class LValueArrayAccess implements LValue {
-    public Type type; 
+public class LValueArrayAccess extends LValueBase {
     
     public final LValue array;
     public final Expr index;

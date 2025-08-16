@@ -1,7 +1,7 @@
 package br.ufjf.lang.compiler.ast;
 
-public class ExprNew implements Expr {
-    public Type type;
+public class ExprNew extends ExprBase {
+
     public final Type typeToCreate;
     public final Expr size; // pode ser null se for apenas "new T"
 

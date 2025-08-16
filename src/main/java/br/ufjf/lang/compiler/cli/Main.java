@@ -14,10 +14,15 @@ import br.ufjf.lang.compiler.interpreter.Interpreter;
 import br.ufjf.lang.compiler.analyzer.SemanticAnalyzer;
 import br.ufjf.lang.compiler.analyzer.SemanticError;
 
+import br.ufjf.lang.compiler.generator.S2SGenerator;
+import br.ufjf.lang.compiler.ast.DataDef;
+
 import org.antlr.v4.runtime.*;
 
 import java.io.*;
 import java.nio.file.Paths;
+import java.nio.file.Files;
+import java.util.Map;
 
 public class Main {
 
@@ -37,6 +42,9 @@ public class Main {
                 runInterpreter(filePath);
             } else if (mode.equals("-t")) {
                 runSemanticCheck(filePath);
+            } 
+            else if (mode.equals("-src")) {
+                runS2SGenerator(filePath);
             } 
             else {
                 System.err.println("Diretiva inválida: " + mode);
@@ -115,4 +123,35 @@ public class Main {
         }
     }
 
+    private static void runS2SGenerator(String filePath) throws IOException {
+        try {
+            // análise sintática e construção da AST
+            Program ast = buildAst(filePath);
+
+            // análise semântica
+            SemanticAnalyzer analyzer = new SemanticAnalyzer();
+            analyzer.analyze(ast);
+
+            Map<String, DataDef> recordTable = analyzer.getRecordTable();
+
+            // geração de código source-to-source
+            S2SGenerator generator = new S2SGenerator(recordTable);
+            String pythonCode = generator.generate(ast);
+
+            String outputFilePath;
+            if (filePath.endsWith(".lan")) {
+                outputFilePath = filePath.substring(0, filePath.length() - ".lan".length()) + ".py";
+            } else {
+                outputFilePath = filePath + ".py";
+            }
+
+            Files.writeString(Paths.get(outputFilePath), pythonCode);
+            
+            System.out.println("Arquivo '" + outputFilePath + "' gerado com sucesso.");
+
+        } catch (RuntimeException e) {
+            System.err.println(e.getMessage());
+            System.exit(1);
+        }
+    }
 }

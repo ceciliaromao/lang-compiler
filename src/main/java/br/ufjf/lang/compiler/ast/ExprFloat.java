@@ -1,7 +1,7 @@
 package br.ufjf.lang.compiler.ast;
 
-public class ExprFloat implements Expr {
-    public Type type;
+public class ExprFloat extends ExprBase {
+
     public final double value;
 
     public ExprFloat(double value) {
