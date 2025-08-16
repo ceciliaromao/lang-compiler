@@ -169,7 +169,7 @@ public class Main {
             String baseName = new File(filePath).getName();
             baseName = baseName.substring(0, baseName.lastIndexOf('.'));
 
-            JasminGenerator generator = new JasminGenerator();
+            JasminGenerator generator = new JasminGenerator(analyzer.getFunctionTable());
             String jasminCode = generator.generate(ast, baseName);
 
             File outputDir = new File("output");

@@ -13,6 +13,10 @@ public class SemanticAnalyzer {
     private Map<String, DataDef> recordTable;
     private SymbolTable table;
 
+    public Map<String, FunDef> getFunctionTable() {
+        return functionTable;
+    }
+
     public Map<String, DataDef> getRecordTable() {
         return this.recordTable;
     }
@@ -51,8 +55,8 @@ public class SemanticAnalyzer {
         if (mainFun == null) {
             throw new SemanticError("Erro: Função 'main' obrigatória não foi encontrada no programa.");
         }
-        if (!mainFun.params.isEmpty() || !mainFun.returnTypes.isEmpty()) {
-            throw new SemanticError("Erro: A função 'main' deve ser um procedimento sem argumentos e sem valor de retorno.");
+        if (!mainFun.params.isEmpty()) {
+            throw new SemanticError("Erro: A função 'main' não deve ter argumentos.");
         }
 
         // 2º PASSE: Análise do corpo das funções
@@ -262,6 +266,19 @@ public class SemanticAnalyzer {
 
         if (cmd instanceof CmdRead r) {
             Type targetType = checkLValue(r.target, table);
+
+            if (targetType == null) {
+                if (r.target instanceof LValueVar var) {
+                    // Variável não declarada. Declara implicitamente como Int.
+                    Type defaultType = new TypeBase("Int");
+                    table.add(var.name, defaultType);
+                    var.type = defaultType; // Atualiza o nó da AST
+                    targetType = defaultType; // Continua a verificação com o novo tipo
+                } else {
+                    // read em a.b ou arr[i] onde a ou arr não existe. Isso ainda é um erro.
+                    throw new SemanticError("Erro: A estrutura base para o alvo do 'read' não foi declarada.");
+                }
+            }
 
             if (
                 !targetType.isA("Int") &&

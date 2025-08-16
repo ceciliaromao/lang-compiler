@@ -4,13 +4,22 @@ import br.ufjf.lang.compiler.ast.*;
 import java.util.stream.Collectors;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 
 public class JasminGenerator {
 
     private StringBuilder code;
     private int labelCounter = 0;
+    private String className;
+    private Map<String, FunDef> functionTable;
     
+    public JasminGenerator(Map<String, FunDef> functionTable) {
+        this.functionTable = functionTable;
+    }
+
     public String generate(Program program, String className) {
+        this.className = className;
         code = new StringBuilder();
 
         // Cabeçalho padrão do Jasmin
@@ -73,10 +82,19 @@ public class JasminGenerator {
         String signature = getMethodSignature(fun);
         
         code.append(".method public static ").append(funName).append(signature).append("\n");
-        code.append("    .limit stack 10\n");
-        code.append("    .limit locals 10\n");
+        
+        Map<String, Integer> localVars = new HashMap<>();
+        int varIndex = 0;
+        for (FunDef.Param param : fun.params) {
+            localVars.put(param.name(), varIndex++);
+        }
 
-        visitCmd(fun.body, new HashMap<String, Integer>());
+        // Defina um limite razoável para a pilha e locais. 
+        // Ferramentas mais avançadas calculariam isso.
+        code.append("    .limit stack 10\n");
+        code.append("    .limit locals ").append(Math.max(varIndex, 10)).append("\n");
+
+        visitCmd(fun.body, localVars);
 
         // Se a função for void, adiciona um return explícito
         if (fun.returnTypes.isEmpty()) {
@@ -123,6 +141,67 @@ public class JasminGenerator {
             visitIf((CmdIf) command, localVars);
         } else if (command instanceof CmdReturn) {
             visitReturn((CmdReturn) command, localVars);
+        } else if (command instanceof CmdCall) {
+            visitCmdCall((CmdCall) command, localVars);
+        } else if (command instanceof CmdRead) {
+            visitRead((CmdRead) command, localVars);
+        }
+    }
+
+    private void visitRead(CmdRead read, Map<String, Integer> localVars) {
+        if (!(read.target instanceof LValueVar)) {
+            // Só suportamos leitura para variáveis simples por enquanto
+            return;
+        }
+        LValueVar var = (LValueVar) read.target;
+        
+        int varIndex;
+        if (localVars.containsKey(var.name)) {
+            varIndex = localVars.get(var.name);
+        } else {
+            varIndex = localVars.size();
+            localVars.put(var.name, varIndex);
+        }
+
+        // Cria um novo Scanner para ler da entrada padrão
+        code.append("    new java/util/Scanner\n");
+        code.append("    dup\n");
+        code.append("    getstatic java/lang/System/in Ljava/io/InputStream;\n");
+        code.append("    invokespecial java/util/Scanner/<init>(Ljava/io/InputStream;)V\n");
+        
+        // Lê a próxima linha
+        code.append("    invokevirtual java/util/Scanner/nextLine()Ljava/lang/String;\n");
+        
+        // Converte a String para o tipo apropriado e armazena na variável
+        Type type = var.type;
+        if (type.isA("Int")) {
+            code.append("    invokestatic java/lang/Integer/parseInt(Ljava/lang/String;)I\n");
+            code.append("    istore ").append(varIndex).append("\n");
+        } else if (type.isA("Float")) {
+            code.append("    invokestatic java/lang/Double/parseDouble(Ljava/lang/String;)D\n");
+            code.append("    dstore ").append(varIndex).append("\n");
+        } else {
+            // Para outros tipos (Char, Bool, etc.), a conversão é mais complexa.
+            // Por enquanto, vamos focar em Int e Float.
+        }
+    }
+
+    private void visitCmdCall(CmdCall call, Map<String, Integer> localVars) {
+        // Empilha todos os argumentos
+        for (Expr arg : call.arguments) {
+            visitExpr(arg, localVars);
+        }
+
+        // Obtém a definição da função para construir a assinatura
+        // (Isso idealmente viria de uma tabela de símbolos passada para o gerador)
+        FunDef funDef = functionTable.get(call.functionName);
+        String signature = getMethodSignature(funDef);
+        
+        code.append("    invokestatic ").append(className).append("/").append(call.functionName).append(signature).append("\n");
+        
+        // Se a função retorna um valor mas a chamada não o usa, remove-o da pilha
+        if (!funDef.returnTypes.isEmpty()) {
+            code.append("    pop\n");
         }
     }
 
@@ -216,9 +295,21 @@ public class JasminGenerator {
             visitBinary((ExprBinary) expr, localVars);
         } else if (expr instanceof ExprLValue) {
             visitLValue(((ExprLValue) expr).lvalue, localVars);
+        } else if (expr instanceof ExprCall) {
+            visitExprCall((ExprCall) expr, localVars);
         }
     }
 
+    private void visitExprCall(ExprCall call, Map<String, Integer> localVars) {
+        for (Expr arg : call.arguments) {
+            visitExpr(arg, localVars);
+        }
+        FunDef funDef = functionTable.get(call.functionName);
+        String signature = getMethodSignature(funDef);
+        code.append("    invokestatic ").append(className).append("/").append(call.functionName).append(signature).append("\n");
+        // O valor de retorno já está na pilha, pronto para ser usado
+    }
+    
     private void visitLValue(LValue lvalue, Map<String, Integer> localVars) {
         if (lvalue instanceof LValueVar) {
             String varName = ((LValueVar) lvalue).name;
