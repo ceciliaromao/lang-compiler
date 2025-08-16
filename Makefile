@@ -5,17 +5,17 @@ generate:
 # Executar análise sintática:
 run-syn:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -syn src/main/resources/sintaxe/errado/attrCHAR.lan
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -syn src/main/resources/sintaxe/errado/absDataErrado1.lan
 
 # Interpretar programa:
 run-i:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/semantica/errado/ControleNotas.lan
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/semantica/certo/full/linked.lan
 
 # Executar a verificação de tipos:
 run-t:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -t src/main/resources/types/function/teste1.lan
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -t src/main/resources/types/errado/errado2.lan
 
 clean:
 	mvn clean

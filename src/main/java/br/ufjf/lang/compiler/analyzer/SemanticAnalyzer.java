@@ -68,10 +68,33 @@ public class SemanticAnalyzer {
             table.add(p.name(), p.type());
         }
 
+        // verificação de tipos nos comandos do corpo da função
         checkCmd(fun.body, table, fun.returnTypes);
 
+        // verificação de fluxo de controle para funções com retorno
         if (!fun.returnTypes.isEmpty()) {
-            if (!guaranteesReturn(fun.body)) {
+            boolean hasGuaranteedReturn = false;
+            
+            // o corpo da função deve ser um CmdBlock para conter múltiplos comandos
+            if (fun.body instanceof CmdBlock block) {
+                List<Cmd> commands = block.commands;
+                
+                for (int i = 0; i < commands.size(); i++) {
+                    Cmd currentCmd = commands.get(i);
+
+                    // se a iteração anterior já garantiu um retorno, este comando é inalcançável (gera warning)
+                    if (hasGuaranteedReturn) {
+                        System.err.println("Warning: Código inalcançável detectado na função '" + fun.name + "'.");
+                        break; 
+                    }
+                    
+                    // atualiza o estado de garantia de retorno
+                    hasGuaranteedReturn = guaranteesReturn(currentCmd);
+                }
+            }
+
+            // se, ao final, nenhum caminho garantiu um retorno, lança erro
+            if (!hasGuaranteedReturn) {
                 throw new SemanticError("Erro na função '" + fun.name + "': nem todos os caminhos de controle retornam um valor.");
             }
         }
@@ -95,11 +118,24 @@ public class SemanticAnalyzer {
             Type valueType = checkExpr(assign.value, table);
             Type targetType = checkLValue(assign.target, table);
 
-            if (targetType != null) { // Atribuição a variável existente
-                if (!targetType.equals(valueType)) {
+            if (targetType != null) {
+                // se a variável já existe (reatribuição)
+                
+                // os tipos são exatamente iguais.
+                boolean typesAreEqual = targetType.equals(valueType);
+                
+                // atribuição de 'null' a um tipo de referência (registro ou array).
+                boolean isAssigningNullToRef = (
+                    (targetType instanceof TypeArray || (targetType instanceof TypeBase tb && recordTable.containsKey(tb.name))) &&
+                    valueType.isA("Null")
+                );
+
+                if (!typesAreEqual && !isAssigningNullToRef) {
                     throw new SemanticError("Erro de tipo: não é possível atribuir um valor do tipo " + valueType + " a uma variável existente do tipo " + targetType);
                 }
-            } else { // Declaração por inferência
+
+            } else {
+                // a variável não existe (declaração por inferência)
                 if (!(assign.target instanceof LValueVar var)) {
                     throw new SemanticError("Erro: Apenas variáveis simples podem ser declaradas por inferência.");
                 }
@@ -199,22 +235,47 @@ public class SemanticAnalyzer {
             if (r.values.size() != expectedReturnTypes.size()) {
                 throw new SemanticError("Erro: A função espera " + expectedReturnTypes.size() + " valores de retorno, mas foram fornecidos " + r.values.size() + ".");
             }
+
             for (int i = 0; i < r.values.size(); i++) {
                 Type actualType = checkExpr(r.values.get(i), table);
                 Type expectedType = expectedReturnTypes.get(i);
-                if (!actualType.equals(expectedType)) {
+
+                // verificação de compatibilidade de tipos
+                boolean typesAreEqual = actualType.equals(expectedType);
+                
+                boolean isReturningNullForRef = (
+                    (expectedType instanceof TypeArray || (expectedType instanceof TypeBase tb && recordTable.containsKey(tb.name))) &&
+                    actualType.isA("Null")
+                );
+
+                // o retorno só é inválido se nrnhuma das condições for atendida
+                if (!typesAreEqual && !isReturningNullForRef) {
                     throw new SemanticError("Erro de tipo no valor de retorno " + i + ". Esperado " + expectedType + ", mas foi recebido " + actualType + ".");
                 }
             }
             return;
         }
 
-        // Se chegar aqui, o tipo de comando não foi tratado
+        if (cmd instanceof CmdRead r) {
+            Type targetType = checkLValue(r.target, table);
+
+            if (
+                !targetType.isA("Int") &&
+                !targetType.isA("Float") &&
+                !targetType.isA("Char") &&
+                !targetType.isA("Bool")
+            ) {
+                throw new SemanticError("Erro: O comando 'read' não pode ser usado com um alvo do tipo " + targetType);
+            }
+
+            return;
+        }
+
         throw new SemanticError("Análise semântica não implementada para o comando: " + cmd.getClass().getSimpleName());
     }
 
     private Type checkExpr(Expr expr, SymbolTable table) {
-        if (expr == null) return null; // Não deveria acontecer com uma AST bem formada
+        if (expr == null) return null;
 
         if (expr instanceof ExprInt i) {
             i.type = new TypeBase("Int");
@@ -239,7 +300,6 @@ public class SemanticAnalyzer {
 
         if (expr instanceof ExprLValue lvalExpr) {
             Type lvalType = checkLValue(lvalExpr.lvalue, table);
-            // **A VERIFICAÇÃO CRÍTICA QUE IMPEDE O NULLPOINTEREXCEPTION**
             if (lvalType == null) {
                 if (lvalExpr.lvalue instanceof LValueVar var) {
                     throw new SemanticError("Erro: A variável '" + var.name + "' não foi declarada antes de ser usada.");
@@ -290,11 +350,39 @@ public class SemanticAnalyzer {
                      if (leftType.isA("Int") && rightType.isA("Int")) { resultType = new TypeBase("Int"); }
                      else { throw new SemanticError("Operador '%' só pode ser aplicado a tipos Int."); }
                      break;
-                case "==", "!=", "<":
+                case "==", "!=": {
+                    // permite comparação entre tipos primitivos se forem iguais.
+                    boolean primitiveMatch = leftType.equals(rightType) && 
+                                            (leftType.isA("Int") || leftType.isA("Float") || leftType.isA("Char") || leftType.isA("Bool"));
+
+                    // permite a comparação de um "tipo de referência" com 'null'.
+                    boolean leftIsRef = (leftType instanceof TypeArray) || 
+                                        (leftType instanceof TypeBase tb && recordTable.containsKey(tb.name));
+                                        
+                    boolean rightIsRef = (rightType instanceof TypeArray) || 
+                                        (rightType instanceof TypeBase tb && recordTable.containsKey(tb.name));
+                    
+                    // a comparação é válida se um lado for referência e o outro for null.
+                    boolean refNullMatch = (leftIsRef && rightType.isA("Null")) || 
+                                        (leftType.isA("Null") && rightIsRef);
+
+                    if (primitiveMatch || refNullMatch) {
+                        resultType = new TypeBase("Bool");
+                    } else {
+                        throw new SemanticError("Operador de igualdade '" + b.op + "' não pode ser aplicado aos tipos " + leftType + " e " + rightType);
+                    }
+                    
+                    b.type = resultType;
+                    return b.type;
+                }
+                case "<": {
                     if (leftType.equals(rightType) && (leftType.isA("Int") || leftType.isA("Float") || leftType.isA("Char"))) {
                         resultType = new TypeBase("Bool");
-                    } else { throw new SemanticError("Operador de comparação '" + b.op + "' não pode ser aplicado aos tipos " + leftType + " e " + rightType); }
+                    } else { 
+                        throw new SemanticError("Operador relacional '<' não pode ser aplicado aos tipos " + leftType + " e " + rightType); 
+                    }
                     break;
+                }
                 case "&&":
                     if (leftType.isA("Bool") && rightType.isA("Bool")) { resultType = new TypeBase("Bool"); }
                     else { throw new SemanticError("Operador lógico '&&' requer operandos do tipo Bool."); }
