@@ -24,38 +24,93 @@ public class JasminGenerator {
         code.append("    return\n");
         code.append(".end method\n\n");
 
-        // Encontra a função 'main' e a gera como o ponto de entrada
-        FunDef mainFunction = null;
-        for (Def def : program.definitions) {
-            if (def instanceof FunDef && ((FunDef) def).name.equals("main")) {
-                mainFunction = (FunDef) def;
-                break;
-            }
-        }
+        // Gera o ponto de entrada padrão da JVM
+        generateMainEntryPoint(program, className);
 
-        if (mainFunction != null) {
-            visitMain(mainFunction);
-        } else {
-            throw new RuntimeException("Função 'main' não encontrada para geração de código Jasmin.");
+        // Gera um método para cada função definida na linguagem
+        for (Def def : program.definitions) {
+            if (def instanceof FunDef) {
+                visitFun((FunDef) def);
+            }
         }
 
         return code.toString();
     }
 
-    private void visitMain(FunDef fun) {
-        code.append(".method public static main([Ljava/lang/String;)V\n");
-        code.append("    .limit stack 10\n"); // Um valor inicial, pode precisar de ajuste
-        code.append("    .limit locals 10\n"); // Mesma coisa para locais
+    private void generateMainEntryPoint(Program program, String className) {
+        FunDef langMain = null;
+        for (Def def : program.definitions) {
+            if (def instanceof FunDef && ((FunDef) def).name.equals("main")) {
+                langMain = (FunDef) def;
+                break;
+            }
+        }
 
-        // O corpo da 'main' será gerado aqui
-        visitCmd(fun.body, new HashMap<String, Integer>());
+        if (langMain == null) {
+            throw new RuntimeException("Função 'main' não encontrada.");
+        }
+
+        code.append(".method public static main([Ljava/lang/String;)V\n");
+        code.append("    .limit stack 10\n");
+        code.append("    .limit locals 10\n");
+        
+        // Chama a função 'main' da nossa linguagem (renomeada para _main)
+        String mainSignature = getMethodSignature(langMain);
+        code.append("    invokestatic ").append(className).append("/_main").append(mainSignature).append("\n");
+
+        // Se a main da linguagem retornar algo, o valor é descartado pois a main da JVM é void.
+        if (!langMain.returnTypes.isEmpty()) {
+            code.append("    pop\n");
+        }
 
         code.append("    return\n");
-        code.append(".end method\n");
+        code.append(".end method\n\n");
+    }
+
+    private void visitFun(FunDef fun) {
+        // Renomeia 'main' para '_main' para evitar conflito com o entry point da JVM
+        String funName = fun.name.equals("main") ? "_main" : fun.name;
+        String signature = getMethodSignature(fun);
+        
+        code.append(".method public static ").append(funName).append(signature).append("\n");
+        code.append("    .limit stack 10\n");
+        code.append("    .limit locals 10\n");
+
+        visitCmd(fun.body, new HashMap<String, Integer>());
+
+        // Se a função for void, adiciona um return explícito
+        if (fun.returnTypes.isEmpty()) {
+            code.append("    return\n");
+        }
+        
+        code.append(".end method\n\n");
+    }
+
+    private String getMethodSignature(FunDef fun) {
+        String params = fun.params.stream()
+            .map(p -> getTypeDescriptor(p.type()))
+            .collect(Collectors.joining());
+
+        String returnType;
+        if (fun.returnTypes.isEmpty()) {
+            returnType = "V";
+        } else {
+            returnType = getTypeDescriptor(fun.returnTypes.get(0));
+            // Múltiplos retornos serão tratados depois (ex: retornando um array)
+        }
+        return "(" + params + ")" + returnType;
+    }
+
+    private String getTypeDescriptor(Type type) {
+        if (type.isA("Int")) return "I";
+        if (type.isA("Float")) return "F";
+        if (type.isA("Bool")) return "Z";
+        if (type.isA("Char")) return "C";
+        // Para tipos de referência (records, arrays), o descritor seria "Lpath/to/Class;"
+        return "Ljava/lang/Object;"; 
     }
 
     private void visitCmd(Cmd command, Map<String, Integer> localVars) {
-        // A implementação da visita aos comandos virá aqui
         if (command instanceof CmdPrint) {
             visitPrint((CmdPrint) command, localVars);
         } else if (command instanceof CmdBlock) {
@@ -66,8 +121,26 @@ public class JasminGenerator {
             visitAssign((CmdAssign) command, localVars);
         } else if (command instanceof CmdIf) {
             visitIf((CmdIf) command, localVars);
+        } else if (command instanceof CmdReturn) {
+            visitReturn((CmdReturn) command, localVars);
         }
-        // Adicionar outros comandos aqui
+    }
+
+    private void visitReturn(CmdReturn ret, Map<String, Integer> localVars) {
+        if (ret.values.isEmpty()) {
+            code.append("    return\n");
+            return;
+        }
+
+        Expr returnValue = ret.values.get(0);
+        visitExpr(returnValue, localVars);
+        Type type = ((ExprBase) returnValue).type;
+        char typePrefix = getJasminTypePrefix(type);
+        if(typePrefix == 'a'){ // a para object reference
+             code.append("    areturn\n");
+        } else {
+             code.append("    ").append(typePrefix).append("return\n");
+        }
     }
 
     private void visitPrint(CmdPrint print, Map<String, Integer> localVars) {
