@@ -15,6 +15,7 @@ import br.ufjf.lang.compiler.analyzer.SemanticAnalyzer;
 import br.ufjf.lang.compiler.analyzer.SemanticError;
 
 import br.ufjf.lang.compiler.generator.S2SGenerator;
+import br.ufjf.lang.compiler.generator.JasminGenerator;
 import br.ufjf.lang.compiler.ast.DataDef;
 
 import org.antlr.v4.runtime.*;
@@ -28,7 +29,7 @@ public class Main {
 
     public static void main(String[] args) {
         if (args.length != 2) {
-            System.err.println("Uso: java -jar lang-compiler.jar [-syn|-i|-t] caminho/arquivo.lang");
+            System.err.println("Uso: java -jar lang-compiler.jar [-syn|-i|-t|-src|-gen] caminho/arquivo.lang");
             System.exit(1);
         }
 
@@ -46,6 +47,9 @@ public class Main {
             else if (mode.equals("-src")) {
                 runS2SGenerator(filePath);
             } 
+            else if (mode.equals("-gen")) {
+                runJasminGenerator(filePath);
+            }
             else {
                 System.err.println("Diretiva inválida: " + mode);
                 System.exit(1);
@@ -147,6 +151,38 @@ public class Main {
 
             Files.writeString(Paths.get(outputFilePath), pythonCode);
             
+            System.out.println("Arquivo '" + outputFilePath + "' gerado com sucesso.");
+
+        } catch (RuntimeException e) {
+            System.err.println(e.getMessage());
+            System.exit(1);
+        }
+    }
+
+    private static void runJasminGenerator(String filePath) throws IOException {
+        try {
+            Program ast = buildAst(filePath);
+
+            SemanticAnalyzer analyzer = new SemanticAnalyzer();
+            analyzer.analyze(ast);
+
+            String baseName = new File(filePath).getName();
+            baseName = baseName.substring(0, baseName.lastIndexOf('.'));
+
+            JasminGenerator generator = new JasminGenerator();
+            String jasminCode = generator.generate(ast, baseName);
+
+            File outputDir = new File("output");
+            if (!outputDir.exists()) {
+                outputDir.mkdir();
+            }
+
+            String outputFilePath = "output/" + baseName + ".j";
+
+            try (PrintWriter out = new PrintWriter(outputFilePath)) {
+                out.println(jasminCode);
+            }
+
             System.out.println("Arquivo '" + outputFilePath + "' gerado com sucesso.");
 
         } catch (RuntimeException e) {
