@@ -6,6 +6,7 @@ package br.ufjf.lang.compiler.cli;
 import br.ufjf.lang.compiler.parser.LangLexer;
 import br.ufjf.lang.compiler.parser.LangParser;
 
+import br.ufjf.lang.compiler.ast.DataDef;
 import br.ufjf.lang.compiler.ast.Program;
 import br.ufjf.lang.compiler.ast.AstBuilderVisitor;
 
@@ -16,7 +17,6 @@ import br.ufjf.lang.compiler.analyzer.SemanticError;
 
 import br.ufjf.lang.compiler.generator.S2SGenerator;
 import br.ufjf.lang.compiler.generator.JasminGenerator;
-import br.ufjf.lang.compiler.ast.DataDef;
 
 import org.antlr.v4.runtime.*;
 
@@ -160,34 +160,34 @@ public class Main {
     }
 
     private static void runJasminGenerator(String filePath) throws IOException {
-        try {
-            Program ast = buildAst(filePath);
+    //     try {
+    //         Program ast = buildAst(filePath);
 
-            SemanticAnalyzer analyzer = new SemanticAnalyzer();
-            analyzer.analyze(ast);
+    //         SemanticAnalyzer analyzer = new SemanticAnalyzer();
+    //         analyzer.analyze(ast);
 
-            String baseName = new File(filePath).getName();
-            baseName = baseName.substring(0, baseName.lastIndexOf('.'));
+    //         String baseName = new File(filePath).getName();
+    //         baseName = baseName.substring(0, baseName.lastIndexOf('.'));
 
-            JasminGenerator generator = new JasminGenerator();
-            String jasminCode = generator.generate(ast, baseName);
+    //         JasminGenerator generator = new JasminGenerator();
+    //         String jasminCode = generator.generate(ast, baseName);
 
-            File outputDir = new File("output");
-            if (!outputDir.exists()) {
-                outputDir.mkdir();
-            }
+    //         File outputDir = new File("output");
+    //         if (!outputDir.exists()) {
+    //             outputDir.mkdir();
+    //         }
 
-            String outputFilePath = "output/" + baseName + ".j";
+    //         String outputFilePath = "output/" + baseName + ".j";
 
-            try (PrintWriter out = new PrintWriter(outputFilePath)) {
-                out.println(jasminCode);
-            }
+    //         try (PrintWriter out = new PrintWriter(outputFilePath)) {
+    //             out.println(jasminCode);
+    //         }
 
-            System.out.println("Arquivo '" + outputFilePath + "' gerado com sucesso.");
+    //         System.out.println("Arquivo '" + outputFilePath + "' gerado com sucesso.");
 
-        } catch (RuntimeException e) {
-            System.err.println(e.getMessage());
-            System.exit(1);
-        }
+    //     } catch (RuntimeException e) {
+    //         System.err.println(e.getMessage());
+    //         System.exit(1);
+    //     }
     }
 }
