@@ -181,6 +181,29 @@ public class Interpreter {
         // Executa o corpo da função com a pilha de escopos atualizada.
         List<LValue> returnValues = executeCmd(fun.body, scopes);
 
+        // Se não houver retorno explícito, verifica se há um retorno implícito de registro.
+        if (returnValues == null && !fun.returnTypes.isEmpty()) {
+            if (fun.returnTypes.size() == 1) {
+                Type returnType = fun.returnTypes.get(0);
+                if (returnType instanceof TypeBase baseType && dataTable.containsKey(baseType.name)) {
+                    LValue candidate = null;
+                    int recordCount = 0;
+                    Map<String, LValue> currentScope = scopes.peek();
+                    for (LValue value : currentScope.values()) {
+                        if (value instanceof LValueRecord) {
+                            candidate = value;
+                            recordCount++;
+                        }
+                    }
+
+                    if (recordCount == 1) {
+                        returnValues = new ArrayList<>();
+                        returnValues.add(candidate);
+                    }
+                }
+            }
+        }
+
         // Remove o escopo da função da pilha ao final de sua execução.
         scopes.pop();
 

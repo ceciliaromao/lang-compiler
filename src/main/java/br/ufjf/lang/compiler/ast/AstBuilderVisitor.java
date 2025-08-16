@@ -299,15 +299,19 @@ public class AstBuilderVisitor extends LangBaseVisitor<Object> {
             String content = raw.substring(1, raw.length() - 1);
             char c;
             if (content.length() > 1 && content.charAt(0) == '\\') {
-                c = switch (content.charAt(1)) {
-                    case 'n' -> '\n';
-                    case 't' -> '\t';
-                    case 'r' -> '\r';
-                    case 'b' -> '\b';
-                    case '\\' -> '\\';
-                    case '\'' -> '\'';
-                    default -> content.charAt(1);
-                };
+                if (Character.isDigit(content.charAt(1))) {
+                    c = (char) Integer.parseInt(content.substring(1));
+                } else {
+                    c = switch (content.charAt(1)) {
+                        case 'n' -> '\n';
+                        case 't' -> '\t';
+                        case 'r' -> '\r';
+                        case 'b' -> '\b';
+                        case '\\' -> '\\';
+                        case '\'' -> '\'';
+                        default -> content.charAt(1);
+                    };
+                }
             } else {
                 c = content.charAt(0);
             }
