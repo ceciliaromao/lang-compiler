@@ -15,12 +15,11 @@ run-t:
 # Interpretar programa:
 run-i:
 	mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i src/main/resources/semantica/certo/full/linked.lan
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i $(file)
 
 # Executar geração source-to-source (Python):
 run-src:
 	# mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -src src/main/resources/semantica/certo/simple/read.lan
 	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i $(file)
 
 # Executar geração de código baixo nível (Jasmin):
