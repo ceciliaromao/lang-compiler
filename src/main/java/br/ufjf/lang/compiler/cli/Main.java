@@ -6,6 +6,7 @@ package br.ufjf.lang.compiler.cli;
 import br.ufjf.lang.compiler.parser.LangLexer;
 import br.ufjf.lang.compiler.parser.LangParser;
 
+import br.ufjf.lang.compiler.ast.DataDef;
 import br.ufjf.lang.compiler.ast.Program;
 import br.ufjf.lang.compiler.ast.AstBuilderVisitor;
 
@@ -16,7 +17,6 @@ import br.ufjf.lang.compiler.analyzer.SemanticError;
 
 import br.ufjf.lang.compiler.generator.S2SGenerator;
 import br.ufjf.lang.compiler.generator.JasminGenerator;
-import br.ufjf.lang.compiler.ast.DataDef;
 
 import org.antlr.v4.runtime.*;
 

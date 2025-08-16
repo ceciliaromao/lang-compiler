@@ -157,6 +157,29 @@ public class S2SGenerator {
                 appendLine("print(" + exprStr + ", end='')");
             }
         }
+        else if (cmd instanceof CmdRead r) {
+            br.ufjf.lang.compiler.ast.LValue targetLval = r.target;
+            
+            Type targetType = ((LValueBase)targetLval).type;
+            if (targetType == null) {
+                throw new RuntimeException("Erro de Geração: O tipo do alvo do comando 'read' não foi determinado.");
+            }
+
+            String targetStr = visit(targetLval);
+            String pythonInput;
+
+            if (targetType.isA("Int")) {
+                pythonInput = "int(input())";
+            } else if (targetType.isA("Float")) {
+                pythonInput = "float(input())";
+            } else if (targetType.isA("Bool")) {
+                pythonInput = "(input().lower() == 'true')";
+            } else { 
+                pythonInput = "input()";
+            }
+
+            appendLine(targetStr + " = " + pythonInput);
+        }
         else {
             throw new RuntimeException("Geração S2S não implementada para o comando: " + cmd.getClass().getSimpleName());
         }

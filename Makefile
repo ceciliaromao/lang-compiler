@@ -20,7 +20,7 @@ run-i:
 # Executar geração source-to-source (Python):
 run-src:
 	# mvn package
-	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -i $(file)
+	java -jar target/lang-compiler-1.0-SNAPSHOT.jar -src $(file)
 
 # Executar geração de código baixo nível (Jasmin):
 run-gen:
