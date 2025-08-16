@@ -2,9 +2,9 @@ package br.ufjf.lang.compiler.ast;
 
 public class ExprChar extends ExprBase {
 
-    public final char value;
+    public final String rawValue;
 
-    public ExprChar(char value) {
-        this.value = value;
+    public ExprChar(String rawValue) {
+        this.rawValue = rawValue;
     }
 }

@@ -149,7 +149,7 @@ public class S2SGenerator {
         }
         else if (cmd instanceof CmdPrint p) {
             // print() em python pula uma linha.
-            if (p.expr instanceof ExprChar c && c.value == '\n') {
+            if (p.expr instanceof ExprChar c && c.rawValue == "'\\n'") {
                 appendLine("print()");
             } else {
                 // utiliza o parâmetro end='' para que o print do python não pule uma linha automaticamente.
@@ -172,15 +172,6 @@ public class S2SGenerator {
         else if (expr instanceof ExprBool b) {
             return b.value ? "True" : "False";
         }
-        else if (expr instanceof ExprChar c) {
-            return switch (c.value) {
-                case '\n' -> "'\\n'";
-                case '\t' -> "'\\t'";
-                case '\'' -> "'\\''";
-                case '\\' -> "'\\\\'";
-                default -> "'" + c.value + "'";
-            };
-        } 
         else if (expr instanceof ExprNull n) {
             return "None";
         }
@@ -206,10 +197,49 @@ public class S2SGenerator {
         else if (expr instanceof ExprParen p) {
             return "(" + visit(p.inner) + ")";
         }
+        else if (expr instanceof ExprNew n) {
+            // alocação de array
+            if (n.size != null) {
+
+                String sizeExpr = visit(n.size);
+                String defaultValue = getDefaultValue(n.typeToCreate);
+                
+                // gera o código Python: [valor_padrão] * (tamanho)
+                return "[" + defaultValue + "] * (" + sizeExpr + ")";
+            }
+            // alocação de record
+            else {
+
+                String typeName = ((TypeBase)n.typeToCreate).name;
+                
+                // gera a chamada ao construtor da classe Python: Point()
+                return typeName + "()";
+            }
+        }
         else if (expr instanceof ExprLValue lvalExpr) {
             return visit(lvalExpr.lvalue);
         }
-        
+        else if (expr instanceof ExprChar c) {
+            String raw = c.rawValue;
+
+            String content = raw.substring(1, raw.length() - 1);
+
+            // verifica se é uma sequência de escape (começa com '\')
+            if (content.length() > 1 && content.charAt(0) == '\\') {
+                char escapeType = content.charAt(1);
+
+                // escape numérico (ex: \065)...
+                if (Character.isDigit(escapeType)) {
+                    // converte para o formato hexadecimal do Python.
+                    int charValue = Integer.parseInt(content.substring(1));
+                    return String.format("'\\x%02x'", charValue);
+                }
+
+            }
+            
+            // se não for um escape numérico, apenas retorna o texto original do token.
+            return raw;
+        }
         throw new RuntimeException("Geração S2S não implementada para a expressão: " + expr.getClass().getSimpleName());
     }
 
@@ -241,6 +271,7 @@ public class S2SGenerator {
 
         throw new RuntimeException("Geração S2S não implementada para o LValue: " + lvalue.getClass().getSimpleName());
     }
+    
     // método auxiliar para obter valores padrão em Python
     private String getDefaultValue(Type type) {
         if (type.isA("Int") || type.isA("Float")) return "0";

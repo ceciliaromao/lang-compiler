@@ -353,9 +353,42 @@ public class Interpreter {
         if (expr instanceof ExprInt i) return new LValueInt(i.value);
         if (expr instanceof ExprBool b) return new LValueBool(b.value);
         if (expr instanceof ExprFloat f) return new LValueFloat(f.value);
-        if (expr instanceof ExprChar c) return new LValueChar(c.value);
         if (expr instanceof ExprNull) return new LValueNull();
         if (expr instanceof ExprParen p) return evalExpr(p.inner, scopes);
+
+        if (expr instanceof ExprChar c) {
+            // pega o texto bruto do token que foi guardado na AST, ex: "'a'" ou "'\\n'" ou "'\\065'"
+            String raw = c.rawValue;
+            String content = raw.substring(1, raw.length() - 1);
+            
+            char finalChar;
+
+            // se o conteúdo tiver mais de 1 char e começar com '\', é uma sequência de escape
+            if (content.length() > 1 && content.charAt(0) == '\\') {
+                char escapeType = content.charAt(1);
+
+                if (Character.isDigit(escapeType)) {
+                    // é um escape ASCII numérico, ex: \065
+                    finalChar = (char) Integer.parseInt(content.substring(1));
+                } else {
+                    // é um escape padrão, ex: \n, \t, \\
+                    finalChar = switch (escapeType) {
+                        case 'n' -> '\n';
+                        case 't' -> '\t';
+                        case 'r' -> '\r';
+                        case 'b' -> '\b';
+                        case '\\' -> '\\';
+                        case '\'' -> '\'';
+                        default -> escapeType;
+                    };
+                }
+            } else {
+                // é um caractere simples, ex: 'a'
+                finalChar = content.charAt(0);
+            }
+            
+            return new LValueChar(finalChar);
+        }
 
         if (expr instanceof ExprUnary u) {
             LValue val = evalExpr(u.expr, scopes);

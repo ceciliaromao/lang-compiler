@@ -1,6 +1,8 @@
 def main():
-    x = 10
-    for i in range((x + 2)):
+    v = [0] * (10)
+    for i in range(10):
+        v[i] = (2 * i)
+    for i in v:
         print(i, end='')
         print(' ', end='')
     print('.', end='')
