@@ -18,11 +18,29 @@ public class JasminGenerator {
         this.functionTable = functionTable;
     }
 
-    public String generate(Program program, String className) {
+    public Map<String, String> generate(Program program, String className) {
         this.className = className;
-        code = new StringBuilder();
+        Map<String, String> generatedFiles = new HashMap<>();
 
-        // Cabeçalho padrão do Jasmin
+        // Gera a classe principal com as funções
+        code = new StringBuilder();
+        generateMainClass(program);
+        generatedFiles.put(this.className, code.toString());
+
+        // Gera uma classe para cada tipo de dado
+        for (Def def : program.definitions) {
+            if (def instanceof DataDef) {
+                code = new StringBuilder();
+                visitDataDef((DataDef) def);
+                generatedFiles.put(((DataDef) def).name, code.toString());
+            }
+        }
+
+        return generatedFiles;
+    }
+
+    private void generateMainClass(Program program) {
+        // Cabeçalho padrão do Jasmin para a classe principal
         code.append(".class public ").append(className).append("\n");
         code.append(".super java/lang/Object\n\n");
 
@@ -42,8 +60,38 @@ public class JasminGenerator {
                 visitFun((FunDef) def);
             }
         }
+    }
 
-        return code.toString();
+    private void visitDataDef(DataDef dataDef) {
+        code.append(".class public ").append(dataDef.name).append("\n");
+        code.append(".super java/lang/Object\n\n");
+
+        // Gera os campos da classe
+        for (FieldDecl field : dataDef.fields) {
+            code.append(".field public ").append(field.name).append(" ").append(getTypeDescriptor(field.type)).append("\n");
+        }
+
+        // Gera o construtor padrão que inicializa os campos
+        code.append("\n.method public <init>()V\n");
+        code.append("    aload_0\n");
+        code.append("    invokenonvirtual java/lang/Object/<init>()V\n");
+        
+        // Inicializa cada campo com um valor padrão
+        for (FieldDecl field : dataDef.fields) {
+            code.append("    aload_0\n");
+            // Empilha o valor padrão
+            if (getJasminTypePrefix(field.type) == 'i') {
+                code.append("    iconst_0\n"); // 0 para int, bool, char
+            } else if (getJasminTypePrefix(field.type) == 'f') {
+                code.append("    fconst_0\n"); // 0.0 para float
+            } else {
+                code.append("    aconst_null\n"); // null para referências
+            }
+            code.append("    putfield ").append(dataDef.name).append("/").append(field.name).append(" ").append(getTypeDescriptor(field.type)).append("\n");
+        }
+        
+        code.append("    return\n");
+        code.append(".end method\n");
     }
 
     private void generateMainEntryPoint(Program program, String className) {
@@ -63,6 +111,20 @@ public class JasminGenerator {
         code.append("    .limit stack 10\n");
         code.append("    .limit locals 10\n");
         
+        // Empilha valores padrão para os parâmetros da main da linguagem, como faz o interpretador
+        for (FunDef.Param param : langMain.params) {
+            if (param.type().isA("Int") || param.type().isA("Bool") || param.type().isA("Char")) {
+                code.append("    iconst_0\n");
+            } else if (param.type().isA("Float")) {
+                code.append("    fconst_0\n");
+            } else if (param.type() instanceof TypeArray) {
+                code.append("    iconst_0\n"); // Tamanho do array
+                code.append("    newarray int\n"); // Assumindo array de int por simplicidade, precisaria de mais lógica
+            } else {
+                code.append("    aconst_null\n");
+            }
+        }
+
         // Chama a função 'main' da nossa linguagem (renomeada para _main)
         String mainSignature = getMethodSignature(langMain);
         code.append("    invokestatic ").append(className).append("/_main").append(mainSignature).append("\n");
@@ -94,7 +156,7 @@ public class JasminGenerator {
         code.append("    .limit stack 10\n");
         code.append("    .limit locals ").append(Math.max(varIndex, 10)).append("\n");
 
-        visitCmd(fun.body, localVars);
+        visitCmd(fun.body, localVars, fun);
 
         // Se a função for void, adiciona um return explícito
         if (fun.returnTypes.isEmpty()) {
@@ -128,24 +190,107 @@ public class JasminGenerator {
         return "Ljava/lang/Object;"; 
     }
 
-    private void visitCmd(Cmd command, Map<String, Integer> localVars) {
+    private void visitCmd(Cmd command, Map<String, Integer> localVars, FunDef currentFunction) {
         if (command instanceof CmdPrint) {
             visitPrint((CmdPrint) command, localVars);
         } else if (command instanceof CmdBlock) {
             for (Cmd cmd : ((CmdBlock) command).commands) {
-                visitCmd(cmd, localVars);
+                visitCmd(cmd, localVars, currentFunction);
             }
         } else if (command instanceof CmdAssign) {
             visitAssign((CmdAssign) command, localVars);
         } else if (command instanceof CmdIf) {
-            visitIf((CmdIf) command, localVars);
+            visitIf((CmdIf) command, localVars, currentFunction);
         } else if (command instanceof CmdReturn) {
-            visitReturn((CmdReturn) command, localVars);
+            visitReturn((CmdReturn) command, localVars, currentFunction);
         } else if (command instanceof CmdCall) {
             visitCmdCall((CmdCall) command, localVars);
         } else if (command instanceof CmdRead) {
             visitRead((CmdRead) command, localVars);
+        } else if (command instanceof CmdIterate) {
+            visitIterate((CmdIterate) command, localVars, currentFunction);
         }
+    }
+
+    private void visitIterate(CmdIterate iter, Map<String, Integer> localVars, FunDef currentFunction) {
+        String loopStartLabel = newLabel();
+        String loopEndLabel = newLabel();
+        Type rangeType = ((ExprBase) iter.range).type;
+
+        Map<String, Integer> loopVars = new HashMap<>(localVars);
+
+        if (rangeType instanceof TypeArray) {
+            // --- Iteração sobre Array ---
+            visitExpr(iter.range, loopVars);
+            int arrayVarIndex = loopVars.size();
+            loopVars.put("__arr" + arrayVarIndex, arrayVarIndex);
+            code.append("    astore ").append(arrayVarIndex).append("\n");
+            
+            int indexVarIndex = loopVars.size();
+            loopVars.put("__idx" + indexVarIndex, indexVarIndex);
+            code.append("    iconst_0\n");
+            code.append("    istore ").append(indexVarIndex).append("\n");
+
+            code.append(loopStartLabel).append(":\n");
+
+            // Condição: __idx < array.length
+            code.append("    iload ").append(indexVarIndex).append("\n");
+            code.append("    aload ").append(arrayVarIndex).append("\n");
+            code.append("    arraylength\n");
+            code.append("    if_icmpge ").append(loopEndLabel).append("\n");
+
+            // Se for for-each, atribui o elemento à variável
+            if (iter.varName != null) {
+                int elementVarIndex = loopVars.size();
+                loopVars.put(iter.varName, elementVarIndex);
+
+                code.append("    aload ").append(arrayVarIndex).append("\n");
+                code.append("    iload ").append(indexVarIndex).append("\n");
+                char elementPrefix = getJasminTypePrefix(((TypeArray) rangeType).elementType);
+                code.append("    ").append(elementPrefix).append("aload\n");
+                code.append("    ").append(elementPrefix).append("store ").append(elementVarIndex).append("\n");
+            }
+
+            visitCmd(iter.body, loopVars, currentFunction);
+            
+            // Incremento: __idx++
+            code.append("    iinc ").append(indexVarIndex).append(" 1\n");
+            code.append("    goto ").append(loopStartLabel).append("\n");
+
+        } else { // --- Iteração sobre Inteiro ---
+            int loopVarIndex;
+            boolean isTempVar = false;
+
+            // Se não houver variável de loop (ex: iterate(10)), cria uma temporária
+            if (iter.varName == null) {
+                loopVarIndex = loopVars.size();
+                loopVars.put("__temp_iter" + loopVarIndex, loopVarIndex);
+                isTempVar = true;
+            } else {
+                loopVarIndex = loopVars.size();
+                loopVars.put(iter.varName, loopVarIndex);
+            }
+            
+            // Inicializa a variável do loop com 0
+            code.append("    iconst_0\n");
+            code.append("    istore ").append(loopVarIndex).append("\n");
+            
+            code.append(loopStartLabel).append(":\n");
+
+            // Condição: loopVar < Range
+            code.append("    iload ").append(loopVarIndex).append("\n");
+            visitExpr(iter.range, loopVars);
+            code.append("    if_icmpge ").append(loopEndLabel).append("\n");
+
+            visitCmd(iter.body, loopVars, currentFunction);
+
+            // Incremento: loopVar++
+            code.append("    iinc ").append(loopVarIndex).append(" 1\n");
+            
+            code.append("    goto ").append(loopStartLabel).append("\n");
+        }
+        
+        code.append(loopEndLabel).append(":\n");
     }
 
     private void visitRead(CmdRead read, Map<String, Integer> localVars) {
@@ -186,6 +331,17 @@ public class JasminGenerator {
         }
     }
 
+    private String getLValueName(LValue lvalue) {
+        if (lvalue instanceof LValueVar) {
+            return ((LValueVar) lvalue).name;
+        } else if (lvalue instanceof LValueArrayAccess) {
+            return getLValueName(((LValueArrayAccess) lvalue).array);
+        } else if (lvalue instanceof LValueRecordAccess) {
+            return getLValueName(((LValueRecordAccess) lvalue).record);
+        }
+        return null;
+    }
+
     private void visitCmdCall(CmdCall call, Map<String, Integer> localVars) {
         // Empilha todos os argumentos
         for (Expr arg : call.arguments) {
@@ -205,17 +361,23 @@ public class JasminGenerator {
         }
     }
 
-    private void visitReturn(CmdReturn ret, Map<String, Integer> localVars) {
-        if (ret.values.isEmpty()) {
+    private void visitReturn(CmdReturn ret, Map<String, Integer> localVars, FunDef currentFunction) {
+        if (currentFunction.returnTypes.isEmpty()) {
+            if (!ret.values.isEmpty()) {
+                // Função é void, mas retorna um valor. Calcula, descarta e retorna.
+                visitExpr(ret.values.get(0), localVars);
+                code.append("    pop\n");
+            }
             code.append("    return\n");
             return;
         }
 
+        // Lógica existente para funções com tipo de retorno
         Expr returnValue = ret.values.get(0);
         visitExpr(returnValue, localVars);
         Type type = ((ExprBase) returnValue).type;
         char typePrefix = getJasminTypePrefix(type);
-        if(typePrefix == 'a'){ // a para object reference
+        if(typePrefix == 'a'){
              code.append("    areturn\n");
         } else {
              code.append("    ").append(typePrefix).append("return\n");
@@ -236,7 +398,7 @@ public class JasminGenerator {
         code.append("    invokevirtual java/io/PrintStream/print(").append(descriptor).append(")V\n");
     }
 
-    private void visitIf(CmdIf ifCmd, Map<String, Integer> localVars) {
+    private void visitIf(CmdIf ifCmd, Map<String, Integer> localVars, FunDef currentFunction) {
         String elseLabel = newLabel();
         String endLabel = newLabel();
 
@@ -247,13 +409,13 @@ public class JasminGenerator {
         code.append("    ifeq ").append(elseLabel).append("\n");
 
         // Bloco then
-        visitCmd(ifCmd.thenBranch, localVars);
+        visitCmd(ifCmd.thenBranch, localVars, currentFunction);
         code.append("    goto ").append(endLabel).append("\n");
 
         // Bloco else
         code.append(elseLabel).append(":\n");
         if (ifCmd.elseBranch != null) {
-            visitCmd(ifCmd.elseBranch, localVars);
+            visitCmd(ifCmd.elseBranch, localVars, currentFunction);
         }
 
         // Fim do if
@@ -297,6 +459,30 @@ public class JasminGenerator {
             visitLValue(((ExprLValue) expr).lvalue, localVars);
         } else if (expr instanceof ExprCall) {
             visitExprCall((ExprCall) expr, localVars);
+        } else if (expr instanceof ExprNew) {
+            visitNew((ExprNew) expr, localVars);
+        }
+    }
+
+    private void visitNew(ExprNew expr, Map<String, Integer> localVars) {
+        if (expr.size != null) { // É uma criação de array
+            visitExpr(expr.size, localVars); // Empilha o tamanho do array
+            Type elementType = expr.typeToCreate;
+             if (elementType instanceof TypeArray) { // Se for array de array...
+                elementType = ((TypeArray)elementType).elementType;
+            }
+            if (elementType.isA("Int")) {
+                code.append("    newarray int\n");
+            } else if (elementType.isA("Float")) {
+                code.append("    newarray float\n");
+            } else {
+                code.append("    anewarray ").append(getTypeDescriptor(elementType)).append("\n");
+            }
+        } else { // É uma criação de record
+            String typeName = expr.typeToCreate.toString();
+            code.append("    new ").append(typeName).append("\n");
+            code.append("    dup\n");
+            code.append("    invokespecial ").append(typeName).append("/<init>()V\n");
         }
     }
 

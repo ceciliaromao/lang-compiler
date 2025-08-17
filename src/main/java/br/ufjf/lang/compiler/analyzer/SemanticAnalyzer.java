@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.ArrayList;
 
 public class SemanticAnalyzer {
 
@@ -55,21 +56,18 @@ public class SemanticAnalyzer {
         if (mainFun == null) {
             throw new SemanticError("Erro: Função 'main' obrigatória não foi encontrada no programa.");
         }
-        if (!mainFun.params.isEmpty()) {
-            throw new SemanticError("Erro: A função 'main' não deve ter argumentos.");
-        }
 
         // 2º PASSE: Análise do corpo das funções
         for (Def def : program.definitions) {
             if (def instanceof FunDef fun) {
-                analyzeFunction(fun, table); 
+                analyzeFunction(fun); 
             }
         }
         
         System.out.println("Análise semântica concluída com sucesso!");
     }
 
-    private void analyzeFunction(FunDef fun, SymbolTable table) {
+    private void analyzeFunction(FunDef fun) {
         table.enterScope();
 
         for (FunDef.Param p : fun.params) {
@@ -77,7 +75,7 @@ public class SemanticAnalyzer {
         }
 
         // verificação de tipos nos comandos do corpo da função
-        checkCmd(fun.body, table, fun.returnTypes);
+        checkCmd(fun.body, table, fun);
 
         // verificação de fluxo de controle para funções com retorno
         if (!fun.returnTypes.isEmpty()) {
@@ -110,29 +108,33 @@ public class SemanticAnalyzer {
         table.leaveScope();
     }
 
-    private void checkCmd(Cmd cmd, SymbolTable table, List<Type> expectedReturnTypes) {
+    private void checkCmd(Cmd cmd, SymbolTable table, FunDef currentFunction) {
         if (cmd == null) return;
 
         if (cmd instanceof CmdBlock block) {
             table.enterScope();
             for (Cmd c : block.commands) {
-                checkCmd(c, table, expectedReturnTypes);
+                checkCmd(c, table, currentFunction);
             }
             table.leaveScope();
             return;
         }
 
         if (cmd instanceof CmdAssign assign) {
+            // Primeiro, verifica se o alvo é uma nova variável.
+            // Se for, a análise da expressão de valor irá considerá-la declarada (para casos como c = c + 1)
+            Type targetType = table.find(getLValueName(assign.target));
+
+            if (targetType == null) {
+                // É uma nova variável. A análise da expressão de valor
+                // irá prosseguir, e o tipo será atribuído depois.
+            }
+            
             Type valueType = checkExpr(assign.value, table);
-            Type targetType = checkLValue(assign.target, table);
 
             if (targetType != null) {
                 // se a variável já existe (reatribuição)
-                
-                // os tipos são exatamente iguais.
                 boolean typesAreEqual = targetType.equals(valueType);
-                
-                // atribuição de 'null' a um tipo de referência (registro ou array).
                 boolean isAssigningNullToRef = (
                     (targetType instanceof TypeArray || (targetType instanceof TypeBase tb && recordTable.containsKey(tb.name))) &&
                     valueType.isA("Null")
@@ -158,9 +160,9 @@ public class SemanticAnalyzer {
             if (!condType.isA("Bool")) {
                 throw new SemanticError("Erro de tipo: a condição do 'if' deve ser do tipo Bool, mas foi recebido " + condType);
             }
-            checkCmd(iff.thenBranch, table, expectedReturnTypes);
+            checkCmd(iff.thenBranch, table, currentFunction);
             if (iff.elseBranch != null) {
-                checkCmd(iff.elseBranch, table, expectedReturnTypes);
+                checkCmd(iff.elseBranch, table, currentFunction);
             }
             return;
         }
@@ -184,15 +186,16 @@ public class SemanticAnalyzer {
                     }
                     table.add(loop.varName, new TypeBase("Int"));
                 }
-                checkCmd(loop.body, table, expectedReturnTypes);
+                checkCmd(loop.body, table, currentFunction);
                 table.leaveScope();
             } else if (rangeType instanceof TypeArray arrayType) {
-                if (loop.varName == null) {
-                    throw new SemanticError("Erro: Para iterar sobre um array, é necessário fornecer uma variável (ex: 'iterate(elem: meuArray)').");
-                }
+                // Permite iteração sobre array com ou sem a variável de elemento.
+                // Se a variável de elemento for fornecida, ela é adicionada ao escopo do loop.
                 table.enterScope();
-                table.add(loop.varName, arrayType.elementType);
-                checkCmd(loop.body, table, expectedReturnTypes);
+                if (loop.varName != null) {
+                    table.add(loop.varName, arrayType.elementType);
+                }
+                checkCmd(loop.body, table, currentFunction);
                 table.leaveScope();
             } else {
                 throw new SemanticError("Erro: A expressão do comando 'iterate' deve ser do tipo Int ou um array, mas foi recebido " + rangeType);
@@ -240,13 +243,26 @@ public class SemanticAnalyzer {
         }
         
         if (cmd instanceof CmdReturn r) {
-            if (r.values.size() != expectedReturnTypes.size()) {
-                throw new SemanticError("Erro: A função espera " + expectedReturnTypes.size() + " valores de retorno, mas foram fornecidos " + r.values.size() + ".");
+            // Analisa as expressões para obter seus tipos
+            List<Type> actualTypes = new ArrayList<>();
+            for(Expr val : r.values) {
+                actualTypes.add(checkExpr(val, table));
+            }
+
+            // Se a função era 'void' até agora, ela assume o tipo deste return
+            if (currentFunction.returnTypes.isEmpty()) {
+                currentFunction.returnTypes.addAll(actualTypes);
+                return;
+            }
+
+            // Se a função já tinha um tipo, verifica a compatibilidade
+            if (r.values.size() != currentFunction.returnTypes.size()) {
+                throw new SemanticError("Erro: A função espera " + currentFunction.returnTypes.size() + " valores de retorno, mas foram fornecidos " + r.values.size() + ".");
             }
 
             for (int i = 0; i < r.values.size(); i++) {
-                Type actualType = checkExpr(r.values.get(i), table);
-                Type expectedType = expectedReturnTypes.get(i);
+                Type actualType = actualTypes.get(i);
+                Type expectedType = currentFunction.returnTypes.get(i);
 
                 // verificação de compatibilidade de tipos
                 boolean typesAreEqual = actualType.equals(expectedType);
@@ -256,7 +272,7 @@ public class SemanticAnalyzer {
                     actualType.isA("Null")
                 );
 
-                // o retorno só é inválido se nrnhuma das condições for atendida
+                // o retorno só é inválido se nenhuma das condições for atendida
                 if (!typesAreEqual && !isReturningNullForRef) {
                     throw new SemanticError("Erro de tipo no valor de retorno " + i + ". Esperado " + expectedType + ", mas foi recebido " + actualType + ".");
                 }
@@ -293,6 +309,18 @@ public class SemanticAnalyzer {
         }
 
         throw new SemanticError("Análise semântica não implementada para o comando: " + cmd.getClass().getSimpleName());
+    }
+
+    // Função auxiliar para obter o nome base de um LValue
+    private String getLValueName(LValue lval) {
+        if (lval instanceof LValueVar) {
+            return ((LValueVar) lval).name;
+        } else if (lval instanceof LValueArrayAccess) {
+            return getLValueName(((LValueArrayAccess) lval).array);
+        } else if (lval instanceof LValueRecordAccess) {
+            return getLValueName(((LValueRecordAccess) lval).record);
+        }
+        return null;
     }
 
     private Type checkExpr(Expr expr, SymbolTable table) {

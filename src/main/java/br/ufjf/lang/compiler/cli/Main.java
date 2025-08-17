@@ -170,20 +170,22 @@ public class Main {
             baseName = baseName.substring(0, baseName.lastIndexOf('.'));
 
             JasminGenerator generator = new JasminGenerator(analyzer.getFunctionTable());
-            String jasminCode = generator.generate(ast, baseName);
+            Map<String, String> jasminCodes = generator.generate(ast, baseName);
 
             File outputDir = new File("output");
             if (!outputDir.exists()) {
                 outputDir.mkdir();
             }
 
-            String outputFilePath = "output/" + baseName + ".j";
-
-            try (PrintWriter out = new PrintWriter(outputFilePath)) {
-                out.println(jasminCode);
+            for (Map.Entry<String, String> entry : jasminCodes.entrySet()) {
+                String className = entry.getKey();
+                String code = entry.getValue();
+                String outputFilePath = "output/" + className + ".j";
+                try (PrintWriter out = new PrintWriter(outputFilePath)) {
+                    out.println(code);
+                }
+                System.out.println("Arquivo '" + outputFilePath + "' gerado com sucesso.");
             }
-
-            System.out.println("Arquivo '" + outputFilePath + "' gerado com sucesso.");
 
         } catch (RuntimeException e) {
             System.err.println(e.getMessage());
