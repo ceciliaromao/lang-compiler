@@ -216,75 +216,64 @@ public class JasminGenerator {
         String loopStartLabel = newLabel();
         String loopEndLabel = newLabel();
         Type rangeType = ((ExprBase) iter.range).type;
-
         Map<String, Integer> loopVars = new HashMap<>(localVars);
 
         if (rangeType instanceof TypeArray) {
-            // --- Iteração sobre Array ---
+            // --- Iteração sobre Array (for-each) ---
             visitExpr(iter.range, loopVars);
             int arrayVarIndex = loopVars.size();
             loopVars.put("__arr" + arrayVarIndex, arrayVarIndex);
             code.append("    astore ").append(arrayVarIndex).append("\n");
-            
+
             int indexVarIndex = loopVars.size();
             loopVars.put("__idx" + indexVarIndex, indexVarIndex);
             code.append("    iconst_0\n");
             code.append("    istore ").append(indexVarIndex).append("\n");
-
+            
             code.append(loopStartLabel).append(":\n");
 
-            // Condição: __idx < array.length
             code.append("    iload ").append(indexVarIndex).append("\n");
             code.append("    aload ").append(arrayVarIndex).append("\n");
             code.append("    arraylength\n");
             code.append("    if_icmpge ").append(loopEndLabel).append("\n");
 
-            // Se for for-each, atribui o elemento à variável
             if (iter.varName != null) {
-                int elementVarIndex = loopVars.size();
-                loopVars.put(iter.varName, elementVarIndex);
-
+                int elementVarIndex = loopVars.computeIfAbsent(iter.varName, k -> loopVars.size());
                 code.append("    aload ").append(arrayVarIndex).append("\n");
                 code.append("    iload ").append(indexVarIndex).append("\n");
-                char elementPrefix = getJasminTypePrefix(((TypeArray) rangeType).elementType);
+                
+                Type elementType = ((TypeArray) rangeType).elementType;
+                char elementPrefix = getJasminTypePrefix(elementType);
                 code.append("    ").append(elementPrefix).append("aload\n");
                 code.append("    ").append(elementPrefix).append("store ").append(elementVarIndex).append("\n");
             }
 
             visitCmd(iter.body, loopVars, currentFunction);
             
-            // Incremento: __idx++
             code.append("    iinc ").append(indexVarIndex).append(" 1\n");
             code.append("    goto ").append(loopStartLabel).append("\n");
 
         } else { // --- Iteração sobre Inteiro ---
-            int loopVarIndex;
-            boolean isTempVar = false;
-
-            // Se não houver variável de loop (ex: iterate(10)), cria uma temporária
-            if (iter.varName == null) {
-                loopVarIndex = loopVars.size();
-                loopVars.put("__temp_iter" + loopVarIndex, loopVarIndex);
-                isTempVar = true;
-            } else {
-                loopVarIndex = loopVars.size();
-                loopVars.put(iter.varName, loopVarIndex);
-            }
+            String loopVarKey = iter.varName != null ? iter.varName : "__temp_iter" + loopVars.size();
+            int loopVarIndex = loopVars.computeIfAbsent(loopVarKey, k -> loopVars.size());
             
-            // Inicializa a variável do loop com 0
+            // Avalia o limite do range ANTES do loop e salva em uma var temporária
+            visitExpr(iter.range, loopVars);
+            int rangeLimitIndex = loopVars.size();
+            loopVars.put("__range" + rangeLimitIndex, rangeLimitIndex);
+            code.append("    istore ").append(rangeLimitIndex).append("\n");
+
             code.append("    iconst_0\n");
             code.append("    istore ").append(loopVarIndex).append("\n");
             
             code.append(loopStartLabel).append(":\n");
 
-            // Condição: loopVar < Range
             code.append("    iload ").append(loopVarIndex).append("\n");
-            visitExpr(iter.range, loopVars);
+            code.append("    iload ").append(rangeLimitIndex).append("\n"); // Usa o limite salvo
             code.append("    if_icmpge ").append(loopEndLabel).append("\n");
 
             visitCmd(iter.body, loopVars, currentFunction);
 
-            // Incremento: loopVar++
             code.append("    iinc ").append(loopVarIndex).append(" 1\n");
             
             code.append("    goto ").append(loopStartLabel).append("\n");
@@ -356,7 +345,9 @@ public class JasminGenerator {
         code.append("    invokestatic ").append(className).append("/").append(call.functionName).append(signature).append("\n");
         
         // Se a função retorna um valor mas a chamada não o usa, remove-o da pilha
-        if (!funDef.returnTypes.isEmpty()) {
+        if (funDef != null && !funDef.returnTypes.isEmpty()) {
+            // Assumindo que o valor de retorno ocupa uma posição na pilha.
+            // Para tipos long/double que ocupam 2, seria pop2.
             code.append("    pop\n");
         }
     }
@@ -423,25 +414,26 @@ public class JasminGenerator {
     }
 
     private void visitAssign(CmdAssign assign, Map<String, Integer> localVars) {
-        if (!(assign.target instanceof LValueVar)) {
-            // Por enquanto, só suportamos atribuição a variáveis simples
-            return;
+        if (assign.target instanceof LValueVar) {
+            String varName = ((LValueVar) assign.target).name;
+            visitExpr(assign.value, localVars);
+            int varIndex = localVars.computeIfAbsent(varName, k -> localVars.size());
+            Type type = ((ExprBase) assign.value).type;
+            char typePrefix = getJasminTypePrefix(type);
+            code.append("    ").append(typePrefix).append("store ").append(varIndex).append("\n");
+        } else if (assign.target instanceof LValueArrayAccess) {
+            LValueArrayAccess arrAccess = (LValueArrayAccess) assign.target;
+            
+            // Empilha a referência do array, o índice e o valor
+            visitLValue(arrAccess.array, localVars);
+            visitExpr(arrAccess.index, localVars);
+            visitExpr(assign.value, localVars);
+            
+            // Armazena no array
+            Type elementType = ((ExprBase)assign.value).type;
+            char typePrefix = getJasminTypePrefix(elementType);
+            code.append("    ").append(typePrefix).append("astore\n");
         }
-        String varName = ((LValueVar) assign.target).name;
-        visitExpr(assign.value, localVars);
-
-        int varIndex;
-        if (localVars.containsKey(varName)) {
-            varIndex = localVars.get(varName);
-        } else {
-            varIndex = localVars.size(); // Próximo índice disponível
-            localVars.put(varName, varIndex);
-        }
-
-        Type type = ((ExprBase) assign.value).type;
-        char typePrefix = getJasminTypePrefix(type);
-
-        code.append("    ").append(typePrefix).append("store ").append(varIndex).append("\n");
     }
 
     private void visitExpr(Expr expr, Map<String, Integer> localVars) {
@@ -493,7 +485,6 @@ public class JasminGenerator {
         FunDef funDef = functionTable.get(call.functionName);
         String signature = getMethodSignature(funDef);
         code.append("    invokestatic ").append(className).append("/").append(call.functionName).append(signature).append("\n");
-        // O valor de retorno já está na pilha, pronto para ser usado
     }
     
     private void visitLValue(LValue lvalue, Map<String, Integer> localVars) {
@@ -507,63 +498,76 @@ public class JasminGenerator {
     }
 
     private void visitBinary(ExprBinary expr, Map<String, Integer> localVars) {
-        visitExpr(expr.left, localVars);
-        visitExpr(expr.right, localVars);
-        Type type = ((ExprBase) expr.left).type;
-        char typePrefix = getJasminTypePrefix(type);
+        Type leftType = ((ExprBase) expr.left).type;
+        Type rightType = ((ExprBase) expr.right).type;
+        boolean isFloatOperation = leftType.isA("Float") || rightType.isA("Float");
 
-        switch (expr.op) {
-            case "+":
-                code.append("    ").append(typePrefix).append("add\n");
-                break;
-            case "-":
-                code.append("    ").append(typePrefix).append("sub\n");
-                break;
-            case "*":
-                code.append("    ").append(typePrefix).append("mul\n");
-                break;
-            case "/":
-                code.append("    ").append(typePrefix).append("div\n");
-                break;
-            case "==":
-            case "!=":
-            case "<":
-                handleComparison(expr.op, typePrefix);
-                break;
-            case "&&":
-                handleLogicalAnd(localVars); // Passando as variáveis locais
-                break;
+        // Garante a ordem de avaliação correta: esquerda, depois direita
+        visitExpr(expr.left, localVars);
+        if (isFloatOperation && leftType.isA("Int")) {
+            code.append("    i2f\n");
+        }
+
+        visitExpr(expr.right, localVars);
+        if (isFloatOperation && rightType.isA("Int")) {
+            code.append("    i2f\n");
+        }
+        
+        if (isComparison(expr.op)) {
+            String trueLabel = newLabel();
+            String endLabel = newLabel();
+            
+            if (isFloatOperation) {
+                 code.append("    fcmpl\n"); // consome 2 floats, empilha int
+                 String instruction = switch (expr.op) {
+                    case "==" -> "ifeq"; case "!=" -> "ifne"; case "<" -> "iflt";
+                    case "<=" -> "ifle"; case ">" -> "ifgt"; case ">=" -> "ifge";
+                    default -> "";
+                };
+                code.append("    ").append(instruction).append(" ").append(trueLabel).append("\n");
+            } else { // Integer
+                String instruction = switch (expr.op) {
+                    case "==" -> "if_icmpeq"; case "!=" -> "if_icmpne"; case "<" -> "if_icmplt";
+                    case "<=" -> "if_icmple"; case ">" -> "if_icmpgt"; case ">=" -> "if_icmpge";
+                    default -> "";
+                };
+                 code.append("    ").append(instruction).append(" ").append(trueLabel).append("\n");
+            }
+            code.append("    iconst_0\n"); // caso falso
+            code.append("    goto ").append(endLabel).append("\n");
+            code.append(trueLabel).append(":\n");
+            code.append("    iconst_1\n"); // caso verdadeiro
+            code.append(endLabel).append(":\n");
+        } else { // Aritmética
+            Type resultType = isFloatOperation ? new TypeBase("Float") : new TypeBase("Int");
+            code.append("    ").append(getBinaryInstruction(expr.op, resultType)).append("\n");
         }
     }
 
-    private void handleComparison(String op, char typePrefix) {
-        String trueLabel = newLabel();
-        String endLabel = newLabel();
-        String instruction;
+    private boolean isComparison(String op) {
+        return op.equals("==") || op.equals("!=") || op.equals("<") || op.equals("<=") || op.equals(">") || op.equals(">=");
+    }
 
-        if (typePrefix == 'f') {
-            code.append("    fcmpl\n"); // Para floats, primeiro compara e coloca -1, 0, ou 1 na pilha
+    private String getBinaryInstruction(String op, Type resultType) {
+        if (resultType.isA("Float")) {
             switch (op) {
-                case "==": instruction = "ifeq"; break; // salta se for 0 (igual)
-                case "!=": instruction = "ifne"; break; // salta se não for 0 (diferente)
-                case "<":  instruction = "iflt"; break; // salta se for -1 (menor que)
-                default: return;
+                case "+": return "fadd";
+                case "-": return "fsub";
+                case "*": return "fmul";
+                case "/": return "fdiv";
+                case "%": return "frem";
             }
-        } else { // Para inteiros
+        } else { // Int
             switch (op) {
-                case "==": instruction = "if_icmpeq"; break;
-                case "!=": instruction = "if_icmpne"; break;
-                case "<":  instruction = "if_icmplt"; break;
-                default: return;
+                case "+": return "iadd";
+                case "-": return "isub";
+                case "*": return "imul";
+                case "/": return "idiv";
+                case "%": return "irem";
+                case "&&": return "iand";
             }
         }
-        
-        code.append("    ").append(instruction).append(" ").append(trueLabel).append("\n");
-        code.append("    iconst_0\n"); // false
-        code.append("    goto ").append(endLabel).append("\n");
-        code.append(trueLabel).append(":\n");
-        code.append("    iconst_1\n"); // true
-        code.append(endLabel).append(":\n");
+        throw new IllegalArgumentException("Operador binário não suportado '" + op + "' para o tipo " + resultType.toString());
     }
 
     private void handleLogicalAnd(Map<String, Integer> localVars) {
@@ -600,6 +604,4 @@ public class JasminGenerator {
             return 'a'; // para referências (arrays, records)
         }
     }
-
-    // Outros métodos visit...
 }
