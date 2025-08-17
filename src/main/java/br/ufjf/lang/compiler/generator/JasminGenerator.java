@@ -1,3 +1,6 @@
+//Maria Cecília Romão Santos (202165557C)
+//Maria Luisa Riolino Guimarães (202165563C)
+
 package br.ufjf.lang.compiler.generator;
 
 import br.ufjf.lang.compiler.ast.*;
@@ -81,11 +84,11 @@ public class JasminGenerator {
             code.append("    aload_0\n");
             // Empilha o valor padrão
             if (getJasminTypePrefix(field.type) == 'i') {
-                code.append("    iconst_0\n"); // 0 para int, bool, char
+                code.append("    iconst_0\n");      // 0 para int, bool, char
             } else if (getJasminTypePrefix(field.type) == 'f') {
-                code.append("    fconst_0\n"); // 0.0 para float
+                code.append("    fconst_0\n");      // 0.0 para float
             } else {
-                code.append("    aconst_null\n"); // null para referências
+                code.append("    aconst_null\n");   // null para referências
             }
             code.append("    putfield ").append(dataDef.name).append("/").append(field.name).append(" ").append(getTypeDescriptor(field.type)).append("\n");
         }
@@ -118,8 +121,8 @@ public class JasminGenerator {
             } else if (param.type().isA("Float")) {
                 code.append("    fconst_0\n");
             } else if (param.type() instanceof TypeArray) {
-                code.append("    iconst_0\n"); // Tamanho do array
-                code.append("    newarray int\n"); // Assumindo array de int por simplicidade, precisaria de mais lógica
+                code.append("    iconst_0\n");      // Tamanho do array
+                code.append("    newarray int\n");  // Assumindo array de int por simplicidade, precisaria de mais lógica
             } else {
                 code.append("    aconst_null\n");
             }
@@ -315,8 +318,7 @@ public class JasminGenerator {
             code.append("    invokestatic java/lang/Double/parseDouble(Ljava/lang/String;)D\n");
             code.append("    dstore ").append(varIndex).append("\n");
         } else {
-            // Para outros tipos (Char, Bool, etc.), a conversão é mais complexa.
-            // Por enquanto, vamos focar em Int e Float.
+            // Conversão para os outros tipos (Char, Bool, etc.) não implementada
         }
     }
 
@@ -338,7 +340,6 @@ public class JasminGenerator {
         }
 
         // Obtém a definição da função para construir a assinatura
-        // (Isso idealmente viria de uma tabela de símbolos passada para o gerador)
         FunDef funDef = functionTable.get(call.functionName);
         String signature = getMethodSignature(funDef);
         
@@ -346,8 +347,6 @@ public class JasminGenerator {
         
         // Se a função retorna um valor mas a chamada não o usa, remove-o da pilha
         if (funDef != null && !funDef.returnTypes.isEmpty()) {
-            // Assumindo que o valor de retorno ocupa uma posição na pilha.
-            // Para tipos long/double que ocupam 2, seria pop2.
             code.append("    pop\n");
         }
     }
@@ -363,7 +362,6 @@ public class JasminGenerator {
             return;
         }
 
-        // Lógica existente para funções com tipo de retorno
         Expr returnValue = ret.values.get(0);
         visitExpr(returnValue, localVars);
         Type type = ((ExprBase) returnValue).type;

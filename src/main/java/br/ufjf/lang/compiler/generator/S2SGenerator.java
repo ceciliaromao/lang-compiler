@@ -1,3 +1,6 @@
+//Maria Cecília Romão Santos (202165557C)
+//Maria Luisa Riolino Guimarães (202165563C)
+
 package br.ufjf.lang.compiler.generator;
 
 import br.ufjf.lang.compiler.ast.*;
@@ -261,20 +264,25 @@ public class S2SGenerator {
 
     // Métodos auxiliares
     private void indent() { indentLevel++; }
+    
     private void dedent() { indentLevel--; }
+    
     private String mangle(String name) {
         if (PYTHON_KEYWORDS.contains(name)) {
             return name + "_";
         }
         return name;
     }
+    
     private void append(String code) { pythonCode.append(code); }
+    
     private void appendLine(String line) {
         for (int i = 0; i < indentLevel; i++) {
             pythonCode.append("    ");
         }
         pythonCode.append(line).append("\n");
     }
+    
     private String getDefaultValue(Type type) {
         if (type.isA("Int") || type.isA("Float")) return "0";
         if (type.isA("Bool")) return "False";

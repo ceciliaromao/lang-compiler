@@ -1,5 +1,5 @@
-//Maria Cecília Romão Santos      202165557C
-//Maria Luisa Riolino Guimarães 202165563C
+//Maria Cecília Romão Santos (202165557C)
+//Maria Luisa Riolino Guimarães (202165563C)
 
 package br.ufjf.lang.compiler.interpreter;
 
@@ -49,10 +49,8 @@ class LValueArray extends LValue {
         this.values = new ArrayList<>(Collections.nCopies(size, new LValueNull()));
     }
 
-    // Métodos para acessar e modificar o array (serão usados futuramente)
     public LValue get(int index) {
         if (index < 0 || index >= values.size()) {
-            // Semântica da linguagem: acesso fora dos limites retorna null.
             return new LValueNull();
         }
         return values.get(index);
@@ -103,7 +101,7 @@ public class Interpreter {
     private final Scanner scanner = new Scanner(System.in);
 
     public void run(Program program) {
-        // Carrega as definições de função e de dados em tabelas para acesso rápido.
+
         for (Def def : program.definitions) {
             if (def instanceof FunDef fun) {
                 functionTable.put(fun.name, fun);
@@ -213,11 +211,10 @@ public class Interpreter {
     private List<LValue> executeCmd(Cmd cmd, Stack<Map<String, LValue>> scopes) {
 
         if (cmd instanceof CmdBlock block) {
-            // Blocos não criam novos escopos, eles executam no escopo atual.
-            // Apenas funções criam novos escopos.
+
             for (Cmd c : block.commands) {
                 List<LValue> ret = executeCmd(c, scopes);
-                // Se um comando de retorno for encontrado, propaga o valor imediatamente.
+                // Se um comando de retorno for encontrado, propaga o valor imediatamente
                 if (ret != null) {
                     return ret;
                 }
@@ -424,7 +421,7 @@ public class Interpreter {
                         return record;
                     }
                 }
-                // Se não for um tipo base conhecido ou não estiver na dataTable, retorna um registro novo e vazio
+                // se não for um tipo base conhecido ou não estiver na dataTable, retorna um registro novo e vazio
                 return new LValueRecord();
             }
         }
@@ -496,11 +493,11 @@ public class Interpreter {
     private LValue evalBinary(String op, LValue left, LValue right) {
         switch (op) {
             case "+", "-", "*", "/", "%":
-                // Coerção de null para 0 em contexto aritmético.
+
                 if (left instanceof LValueNull) left = new LValueInt(0);
                 if (right instanceof LValueNull) right = new LValueInt(0);
 
-                // Promoção de tipo: se um for Float, converte o outro para Float.
+                // promoção de tipo: se um for Float, converte o outro para Float.
                 if (left instanceof LValueFloat || right instanceof LValueFloat) {
                     double l = (left instanceof LValueFloat f) ? f.value : ((LValueInt) left).value;
                     double r = (right instanceof LValueFloat f) ? f.value : ((LValueInt) right).value;
@@ -527,7 +524,7 @@ public class Interpreter {
                 throw new RuntimeException("Tipos incompatíveis para operação: " + left + " " + op + " " + right);
 
             case "==", "!=", "<": {
-                // Comparações com null
+
                 if (left instanceof LValueNull || right instanceof LValueNull) {
                     if (op.equals("<")) {
                         return new LValueBool(false); // null nunca é menor que algo.
@@ -614,8 +611,7 @@ public class Interpreter {
 
     private void setLValue(br.ufjf.lang.compiler.ast.LValue lvalue, LValue val, Stack<Map<String, LValue>> scopes) {
         if (lvalue instanceof LValueVar v) {
-            // A atribuição sempre acontece no escopo mais interno (o atual).
-            // Se a variável já existe em um escopo externo, esta nova a "sombra".
+            // A atribuição sempre acontece no escopo mais interno (o atual)
             scopes.peek().put(v.name, val);
             return;
         }
