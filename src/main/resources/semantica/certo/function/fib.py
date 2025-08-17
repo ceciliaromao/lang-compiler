@@ -1,0 +1,14 @@
+def fibonacci(n):
+    if (n < 1):
+        return (n,)
+    if (n == 1):
+        return (n,)
+    return ((fibonacci((n - 1))[0] + fibonacci((n - 2))[0]),)
+
+def main():
+    v = fibonacci(15)[0]
+    print(v, end='')
+    print()
+
+if __name__ == "__main__":
+    main()

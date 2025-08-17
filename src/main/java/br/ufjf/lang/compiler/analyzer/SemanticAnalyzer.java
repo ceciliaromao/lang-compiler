@@ -121,31 +121,26 @@ public class SemanticAnalyzer {
         }
 
         if (cmd instanceof CmdAssign assign) {
-            // Primeiro, verifica se o alvo é uma nova variável.
-            // Se for, a análise da expressão de valor irá considerá-la declarada (para casos como c = c + 1)
-            Type targetType = table.find(getLValueName(assign.target));
-
-            if (targetType == null) {
-                // É uma nova variável. A análise da expressão de valor
-                // irá prosseguir, e o tipo será atribuído depois.
-            }
-            
+            // LÓGICA CORRETA
+            // 1. Analisa a expressão da direita para descobrir seu tipo.
             Type valueType = checkExpr(assign.value, table);
 
+            // 2. Analisa o L-VALUE COMPLETO da esquerda (ex: v[i]) para descobrir seu tipo.
+            // checkLValue retornará 'Int' para 'v[i]' e 'null' para uma variável nova.
+            Type targetType = checkLValue(assign.target, table);
+
             if (targetType != null) {
-                // se a variável já existe (reatribuição)
+                // CASO A: A variável/alvo JÁ EXISTE (Reatribuição)
                 boolean typesAreEqual = targetType.equals(valueType);
                 boolean isAssigningNullToRef = (
                     (targetType instanceof TypeArray || (targetType instanceof TypeBase tb && recordTable.containsKey(tb.name))) &&
                     valueType.isA("Null")
                 );
-
                 if (!typesAreEqual && !isAssigningNullToRef) {
-                    throw new SemanticError("Erro de tipo: não é possível atribuir um valor do tipo " + valueType + " a uma variável existente do tipo " + targetType);
+                    throw new SemanticError("Erro de tipo: não é possível atribuir um valor do tipo " + valueType + " a um alvo existente do tipo " + targetType);
                 }
-
             } else {
-                // a variável não existe (declaração por inferência)
+                // CASO B: A variável NÃO EXISTE (Declaração por Inferência)
                 if (!(assign.target instanceof LValueVar var)) {
                     throw new SemanticError("Erro: Apenas variáveis simples podem ser declaradas por inferência.");
                 }
@@ -393,11 +388,17 @@ public class SemanticAnalyzer {
 
             switch (b.op) {
                 case "+", "-", "*", "/":
+                    // Caso 1: Ambos os operandos são Int. O resultado é Int.
                     if (leftType.isA("Int") && rightType.isA("Int")) {
                         resultType = new TypeBase("Int");
-                    } else if (leftType.isA("Float") && rightType.isA("Float")) {
+                    } 
+                    // Caso 2: Pelo menos um é Float e o outro é um número (Int ou Float). O resultado é sempre Float.
+                    else if ( (leftType.isA("Float") || leftType.isA("Int")) &&
+                            (rightType.isA("Float") || rightType.isA("Int")) ) {
                         resultType = new TypeBase("Float");
-                    } else {
+                    } 
+                    // Caso 3: Os tipos são incompatíveis (ex: Float + Bool).
+                    else {
                         throw new SemanticError("Operador aritmético '" + b.op + "' não pode ser aplicado aos tipos " + leftType + " e " + rightType);
                     }
                     break;
